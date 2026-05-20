@@ -1,0 +1,866 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黑洞吸积盘 | Black Hole Accretion Disk</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #000005;
+  overflow: hidden;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  height: 100vh;
+  width: 100vw;
+}
+
+#container {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+/* ── glass panel ── */
+#panel {
+  position: fixed;
+  z-index: 10;
+  top: 24px;
+  left: 24px;
+  width: 312px;
+  background: rgba(8, 8, 24, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  padding: 22px 20px 18px;
+  color: #d0d0dc;
+  transition: opacity 0.3s;
+}
+
+#panel h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #f0a040;
+  margin-bottom: 2px;
+}
+#panel h2 {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: #8888a8;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+#panel p.intro {
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: #aab;
+  margin-bottom: 14px;
+  border-left: 2px solid rgba(240, 160, 64, 0.4);
+  padding-left: 10px;
+}
+
+/* ── docs toggle ── */
+#docs-toggle {
+  font-size: 0.74rem;
+  color: #99b;
+  cursor: pointer;
+  margin-bottom: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.18s;
+  user-select: none;
+}
+#docs-toggle:hover { color: #f0a040; }
+#docs-toggle .arrow {
+  display: inline-block;
+  transition: transform 0.25s;
+  font-size: 0.65rem;
+}
+#docs-toggle.open .arrow { transform: rotate(90deg); }
+
+#docs-content {
+  margin-bottom: 14px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+#docs-content.open { max-height: 500px; overflow-y: auto; }
+.docs-section { margin-bottom: 10px; }
+.docs-section:last-child { margin-bottom: 0; }
+.docs-section h4 {
+  font-size: 0.72rem;
+  color: #d8a058;
+  margin-bottom: 4px;
+  font-weight: 600;
+}
+.docs-section p {
+  font-size: 0.71rem;
+  line-height: 1.55;
+  color: #99a;
+}
+#docs-content::-webkit-scrollbar { width: 3px; }
+#docs-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+/* ── legend ── */
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 14px;
+  font-size: 0.74rem;
+  color: #99a;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.legend-dot.inner { background: #c8e0ff; box-shadow: 0 0 6px rgba(180,210,255,0.6); }
+.legend-dot.mid   { background: #ffcc66; box-shadow: 0 0 6px rgba(255,200,100,0.5); }
+.legend-dot.outer { background: #ff5522; box-shadow: 0 0 6px rgba(255,80,40,0.4); }
+.legend-dot.photon { background: #ffe8cc; box-shadow: 0 0 8px rgba(255,230,200,0.8); }
+.legend-dot.ghost { background: rgba(180,200,255,0.4); border: 1px dashed rgba(180,200,255,0.5); }
+
+/* ── ctrl rows ── */
+.ctrl-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.ctrl-row label {
+  width: 72px;
+  font-size: 0.78rem;
+  color: #bcc;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  flex: 1;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.10);
+  outline: none;
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f0a040;
+  border: 2px solid rgba(0,0,0,0.3);
+  cursor: pointer;
+  transition: transform 0.12s;
+}
+input[type="range"]::-webkit-slider-thumb:active { transform: scale(1.2); }
+.val {
+  width: 36px;
+  text-align: right;
+  font-size: 0.75rem;
+  color: #99a;
+  font-variant-numeric: tabular-nums;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace;
+  flex-shrink: 0;
+}
+
+/* ── buttons ── */
+.btn-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.btn-row button {
+  flex: 1;
+  padding: 7px 0;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: #ccd;
+  font-size: 0.78rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.18s, border-color 0.18s;
+}
+.btn-row button:hover {
+  background: rgba(255,255,255,0.13);
+  border-color: rgba(255,255,255,0.24);
+}
+.btn-row button.accent {
+  border-color: rgba(240,160,64,0.35);
+  color: #f0a040;
+}
+.btn-row button.accent:hover { background: rgba(240,160,64,0.12); }
+
+/* ── lang toggle ── */
+#lang-btn {
+  position: fixed;
+  z-index: 10;
+  top: 24px;
+  right: 24px;
+  padding: 6px 14px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(8,8,24,0.65);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #bcc;
+  font-size: 0.76rem;
+  cursor: pointer;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  transition: background 0.18s, border-color 0.18s;
+}
+#lang-btn:hover { background: rgba(255,255,255,0.10); }
+
+/* ── footer hint ── */
+#hint {
+  position: fixed;
+  z-index: 5;
+  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.68rem;
+  color: rgba(255,255,255,0.16);
+  letter-spacing: 0.04em;
+  pointer-events: none;
+}
+
+/* ── responsive ── */
+@media (max-width: 600px) {
+  #panel {
+    top: auto;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    border-radius: 14px 14px 0 0;
+    padding: 16px 16px 12px;
+  }
+  #panel p.intro, #docs-toggle, #docs-content, .legend { display: none; }
+  #hint { bottom: 190px; }
+}
+</style>
+</head>
+<body>
+
+<div id="container"></div>
+
+<div id="panel">
+  <h1 data-i18n="title">黑洞吸积盘</h1>
+  <h2 data-i18n="subtitle">Black Hole Accretion Disk</h2>
+  <p class="intro" data-i18n="intro">
+    超大质量黑洞被旋转的吸积盘环绕。物质沿开普勒轨道螺旋下落，内区温度可达数百万度，发出耀眼蓝白光芒；外区逐渐冷却，呈红橙色。引力透镜让盘背后方的光线弯曲，在黑洞上方形成幽灵般的弧形光晕。
+  </p>
+  <div id="docs-toggle"><span data-i18n="docs_toggle">详细介绍</span> <span class="arrow">&#9654;</span></div>
+  <div id="docs-content">
+    <div class="docs-section">
+      <h4 data-i18n="docs_structure_title">结构解析</h4>
+      <p data-i18n="docs_structure">本可视化展示了一个史瓦西（非旋转）黑洞的关键结构：事件视界（中心黑色球体，r = R<sub>s</sub>）、光子球（r = 1.5 R<sub>s</sub>，亮环）、最内稳定圆轨道 ISCO（r = 3 R<sub>s</sub>，吸积盘内缘）和延伸至 ~8 R<sub>s</sub> 的吸积盘。上方弧形光晕模拟了引力透镜效应——盘背后方发出的光被黑洞引力弯曲后形成的次级像。</p>
+    </div>
+    <div class="docs-section">
+      <h4 data-i18n="docs_physics_title">物理要点</h4>
+      <p data-i18n="docs_physics">吸积盘粒子沿开普勒轨道运行，角速度 ω ∝ r<sup>−3/2</sup>。内区角速度最快，温度最高（~10<sup>6</sup>–10<sup>7</sup> K），呈蓝白色；中区 ~5000–8000 K 呈黄白色；外区 ~2000–4000 K 呈橙红色。光子球处的光环源于光子在 r = 1.5 R<sub>s</sub> 处的不稳定圆轨道——光子绕黑洞转圈后逃逸，形成明亮的「光子环」。</p>
+    </div>
+    <div class="docs-section">
+      <h4 data-i18n="docs_lensing_title">引力透镜</h4>
+      <p data-i18n="docs_lensing">黑洞上方的弧形粒子群模拟了引力透镜的视觉效果。吸积盘背面发出的光在黑洞强大引力场中弯曲传播，绕过事件视界后到达观测者眼中，形成一个悬浮在黑洞上方的扭曲光弧。半径越靠近光子球的来源，其透镜像越贴近黑洞表面。这一现象在 2019 年 M87* 和 2022 年 Sgr A* 的 EHT 观测图像中均得以证实。</p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot inner"></span><span data-i18n="legend_inner">内盘 · 高温蓝白 10⁶–10⁷ K</span></div>
+    <div class="legend-item"><span class="legend-dot mid"></span><span data-i18n="legend_mid">中盘 · 黄白 ~6000 K</span></div>
+    <div class="legend-item"><span class="legend-dot outer"></span><span data-i18n="legend_outer">外盘 · 红橙 ~3000 K</span></div>
+    <div class="legend-item"><span class="legend-dot photon"></span><span data-i18n="legend_photon">光子环 · r = 1.5 R<sub>s</sub></span></div>
+    <div class="legend-item"><span class="legend-dot ghost"></span><span data-i18n="legend_ghost">引力透镜弧 · 次级像</span></div>
+  </div>
+
+  <div class="ctrl-row">
+    <label data-i18n="speed_label">速度</label>
+    <input type="range" id="speed-slider" min="1" max="20" value="5" step="1">
+    <span class="val" id="speed-val">5</span>
+  </div>
+
+  <div class="btn-row">
+    <button id="btn-pause" class="accent" data-i18n="pause">暂 停</button>
+    <button id="btn-reset" data-i18n="reset">重 置</button>
+    <button id="btn-topview" data-i18n="topview">俯 视</button>
+  </div>
+</div>
+
+<button id="lang-btn">EN</button>
+
+<div id="hint" data-i18n="hint">拖拽旋转 · 滚轮缩放 · 右键平移 · 空格暂停</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ═══════════════════════════════════════════
+// i18n
+// ═══════════════════════════════════════════
+const i18n = {
+  zh: {
+    title: '黑洞吸积盘',
+    subtitle: 'Black Hole Accretion Disk',
+    intro: '超大质量黑洞被旋转的吸积盘环绕。物质沿开普勒轨道螺旋下落，内区温度可达数百万度，发出耀眼蓝白光芒；外区逐渐冷却，呈红橙色。引力透镜让盘背后方的光线弯曲，在黑洞上方形成幽灵般的弧形光晕。',
+    docs_toggle: '详细介绍',
+    docs_structure_title: '结构解析',
+    docs_structure: '本可视化展示了一个史瓦西（非旋转）黑洞的关键结构：事件视界（中心黑色球体，r = R<sub>s</sub>）、光子球（r = 1.5 R<sub>s</sub>，亮环）、最内稳定圆轨道 ISCO（r = 3 R<sub>s</sub>，吸积盘内缘）和延伸至 ~8 R<sub>s</sub> 的吸积盘。上方弧形光晕模拟了引力透镜效应——盘背后方发出的光被黑洞引力弯曲后形成的次级像。',
+    docs_physics_title: '物理要点',
+    docs_physics: '吸积盘粒子沿开普勒轨道运行，角速度 ω ∝ r<sup>−3/2</sup>。内区角速度最快，温度最高（~10<sup>6</sup>–10<sup>7</sup> K），呈蓝白色；中区 ~5000–8000 K 呈黄白色；外区 ~2000–4000 K 呈橙红色。光子球处的光环源于光子在 r = 1.5 R<sub>s</sub> 处的不稳定圆轨道——光子绕黑洞转圈后逃逸，形成明亮的「光子环」。',
+    docs_lensing_title: '引力透镜',
+    docs_lensing: '黑洞上方的弧形粒子群模拟了引力透镜的视觉效果。吸积盘背面发出的光在黑洞强大引力场中弯曲传播，绕过事件视界后到达观测者眼中，形成一个悬浮在黑洞上方的扭曲光弧。半径越靠近光子球的来源，其透镜像越贴近黑洞表面。这一现象在 2019 年 M87* 和 2022 年 Sgr A* 的 EHT 观测图像中均得以证实。',
+    legend_inner: '内盘 · 高温蓝白 10⁶–10⁷ K',
+    legend_mid: '中盘 · 黄白 ~6000 K',
+    legend_outer: '外盘 · 红橙 ~3000 K',
+    legend_photon: '光子环 · r = 1.5 R<sub>s</sub>',
+    legend_ghost: '引力透镜弧 · 次级像',
+    speed_label: '速度',
+    pause: '暂 停',
+    play: '播 放',
+    reset: '重 置',
+    topview: '俯 视',
+    hint: '拖拽旋转 · 滚轮缩放 · 右键平移 · 空格暂停'
+  },
+  en: {
+    title: 'Black Hole Accretion Disk',
+    subtitle: 'Schwarzschild Black Hole Visualization',
+    intro: 'A supermassive black hole surrounded by a rotating accretion disk. Matter spirals inward on Keplerian orbits — the inner region glows blue-white at millions of degrees, while the outer disk cools to red-orange. Gravitational lensing bends light from behind the disk into a ghostly arc above the event horizon.',
+    docs_toggle: 'Details',
+    docs_structure_title: 'Structure',
+    docs_structure: 'This visualization shows the key structures of a Schwarzschild (non-rotating) black hole: the event horizon (central black sphere, r = R<sub>s</sub>), the photon sphere (r = 1.5 R<sub>s</sub>, bright ring), the innermost stable circular orbit ISCO (r = 3 R<sub>s</sub>, inner disk edge), and an accretion disk extending to ~8 R<sub>s</sub>. The arc of particles above represents gravitational lensing — a secondary image formed by light from the far side of the disk bent around the black hole.',
+    docs_physics_title: 'Physics',
+    docs_physics: 'Disk particles follow Keplerian orbits with angular velocity ω ∝ r<sup>−3/2</sup>. The inner disk spins fastest and is hottest (~10<sup>6</sup>–10<sup>7</sup> K), glowing blue-white. The mid-disk (~5000–8000 K) appears yellow-white, and the outer disk (~2000–4000 K) glows red-orange. The photon ring arises from unstable circular photon orbits at r = 1.5 R<sub>s</sub> — light circling the black hole before escaping to form a bright ring.',
+    docs_lensing_title: 'Gravitational Lensing',
+    docs_lensing: 'The arc of particles above the black hole simulates gravitational lensing. Light emitted from the far side of the accretion disk is bent by the black hole\'s gravity, curving around the event horizon before reaching the observer. Sources closer to the photon sphere produce lensed images nearer the black hole surface. This phenomenon was confirmed in EHT observations of M87* (2019) and Sgr A* (2022).',
+    legend_inner: 'Inner disk · Blue-white 10⁶–10⁷ K',
+    legend_mid: 'Mid disk · Yellow-white ~6000 K',
+    legend_outer: 'Outer disk · Red-orange ~3000 K',
+    legend_photon: 'Photon ring · r = 1.5 R<sub>s</sub>',
+    legend_ghost: 'Lensing arc · Secondary image',
+    speed_label: 'Speed',
+    pause: 'Pause',
+    play: 'Play',
+    reset: 'Reset',
+    topview: 'Top View',
+    hint: 'Drag to rotate · Scroll to zoom · Right-drag to pan · Space to pause'
+  }
+};
+
+let lang = 'zh';
+function t(key) { return i18n[lang][key]; }
+
+function updateLangUI() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    const val = t(k);
+    if (val.includes('<')) el.innerHTML = val;
+    else el.textContent = val;
+  });
+  document.getElementById('lang-btn').textContent = lang === 'zh' ? 'EN' : '中';
+  const pb = document.getElementById('btn-pause');
+  pb.textContent = paused ? t('play') : t('pause');
+}
+
+document.getElementById('lang-btn').addEventListener('click', () => {
+  lang = lang === 'zh' ? 'en' : 'zh';
+  updateLangUI();
+});
+
+// docs toggle
+const docsToggle = document.getElementById('docs-toggle');
+const docsContent = document.getElementById('docs-content');
+let docsOpen = false;
+docsToggle.addEventListener('click', () => {
+  docsOpen = !docsOpen;
+  if (docsOpen) {
+    docsToggle.classList.add('open');
+    docsContent.classList.add('open');
+  } else {
+    docsToggle.classList.remove('open');
+    docsContent.classList.remove('open');
+  }
+});
+
+// ═══════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════
+const RS       = 1.0;   // Schwarzschild radius (event horizon)
+const R_PHOTON = 1.5;   // Photon sphere
+const R_ISCO   = 3.0;   // Innermost stable circular orbit
+const R_OUTER  = 8.0;   // Outer disk edge
+
+const DISK_PARTICLES  = 7000;
+const GHOST_PARTICLES = 2500;
+const CORONA_PARTICLES = 400;
+const PHOTON_RING_SEGMENTS = 600;
+const STAR_COUNT = 2000;
+
+const STEPS_PER_FRAME_BASE = 3;
+let speed = 5;
+let paused = false;
+
+// ═══════════════════════════════════════════
+// Three.js setup
+// ═══════════════════════════════════════════
+const container = document.getElementById('container');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#000000');
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.3, 200);
+camera.position.set(7, 5.5, 11);
+camera.lookAt(0, 0.3, 0);
+
+// Post-processing
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  1.5,    // strength
+  0.4,    // radius
+  0.08    // threshold
+);
+composer.addPass(bloomPass);
+
+// Orbit controls
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.5, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.4;
+controls.minDistance = 3;
+controls.maxDistance = 40;
+controls.maxPolarAngle = Math.PI * 0.85;
+controls.update();
+
+// ═══════════════════════════════════════════
+// Starfield
+// ═══════════════════════════════════════════
+const starGeo = new THREE.BufferGeometry();
+const starPositions = new Float32Array(STAR_COUNT * 3);
+for (let i = 0; i < STAR_COUNT; i++) {
+  const r = 50 + Math.random() * 100;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  starPositions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+  starPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+  starPositions[i * 3 + 2] = r * Math.cos(phi);
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+const starMat = new THREE.PointsMaterial({
+  color: 0x8899cc,
+  size: 0.18,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  transparent: true,
+  opacity: 0.4
+});
+scene.add(new THREE.Points(starGeo, starMat));
+
+// ═══════════════════════════════════════════
+// Event horizon — pure black sphere
+// ═══════════════════════════════════════════
+const horizonGeo = new THREE.SphereGeometry(RS, 64, 64);
+const horizonMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+const horizon = new THREE.Mesh(horizonGeo, horizonMat);
+scene.add(horizon);
+
+// Subtle rim light on event horizon (very faint, catches bloom slightly)
+const rimGeo = new THREE.TorusGeometry(RS, 0.025, 16, 200);
+const rimMat = new THREE.MeshBasicMaterial({ color: 0x332211 });
+const rim = new THREE.Mesh(rimGeo, rimMat);
+rim.rotation.x = Math.PI / 2;
+scene.add(rim);
+
+// ═══════════════════════════════════════════
+// Photon ring — bright thin torus at photon sphere
+// ═══════════════════════════════════════════
+const photonRingGeo = new THREE.TorusGeometry(R_PHOTON, 0.018, 16, PHOTON_RING_SEGMENTS);
+const photonRingMat = new THREE.MeshBasicMaterial({ color: 0xffeedd });
+const photonRing = new THREE.Mesh(photonRingGeo, photonRingMat);
+photonRing.rotation.x = Math.PI / 2;
+scene.add(photonRing);
+
+// Second fainter photon ring (lensing creates multiple ring images)
+const photonRing2Geo = new THREE.TorusGeometry(R_PHOTON + 0.08, 0.008, 16, PHOTON_RING_SEGMENTS);
+const photonRing2Mat = new THREE.MeshBasicMaterial({ color: 0xccbbaa, transparent: true, opacity: 0.5 });
+const photonRing2 = new THREE.Mesh(photonRing2Geo, photonRing2Mat);
+photonRing2.rotation.x = Math.PI / 2;
+scene.add(photonRing2);
+
+// ═══════════════════════════════════════════
+// Corona — hot scattered particles near event horizon
+// ═══════════════════════════════════════════
+const coronaGeo = new THREE.BufferGeometry();
+const coronaPositionsArr = new Float32Array(CORONA_PARTICLES * 3);
+const coronaColorsArr = new Float32Array(CORONA_PARTICLES * 3);
+for (let i = 0; i < CORONA_PARTICLES; i++) {
+  const r = RS + Math.random() * 1.3;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  // Bias toward equatorial plane
+  const phiBiased = phi * 0.6 + Math.PI / 2 * 0.4;
+  coronaPositionsArr[i * 3]     = r * Math.sin(phiBiased) * Math.cos(theta);
+  coronaPositionsArr[i * 3 + 1] = r * Math.cos(phiBiased);
+  coronaPositionsArr[i * 3 + 2] = r * Math.sin(phiBiased) * Math.sin(theta);
+  // Blue-white hot corona
+  const brightness = 0.4 + Math.random() * 0.6;
+  coronaColorsArr[i * 3]     = 0.7 * brightness;
+  coronaColorsArr[i * 3 + 1] = 0.75 * brightness;
+  coronaColorsArr[i * 3 + 2] = 1.0 * brightness;
+}
+coronaGeo.setAttribute('position', new THREE.BufferAttribute(coronaPositionsArr, 3));
+coronaGeo.setAttribute('color', new THREE.BufferAttribute(coronaColorsArr, 3));
+const coronaMat = new THREE.PointsMaterial({
+  size: 0.04,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.5
+});
+const coronaPoints = new THREE.Points(coronaGeo, coronaMat);
+scene.add(coronaPoints);
+
+// ═══════════════════════════════════════════
+// Accretion disk particles
+// ═══════════════════════════════════════════
+
+// Helper: Box-Muller Gaussian random
+function gaussianRandom() {
+  let u = 0, v = 0;
+  while (u === 0) u = Math.random();
+  while (v === 0) v = Math.random();
+  return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+}
+
+// Temperature-based color for disk radius
+function diskColor(r) {
+  const t = (r - R_ISCO) / (R_OUTER - R_ISCO); // 0=inner, 1=outer
+  if (t < 0.15) {
+    const s = t / 0.15;
+    return [0.55 + 0.45 * s, 0.65 + 0.35 * s, 1.0];
+  } else if (t < 0.4) {
+    const s = (t - 0.15) / 0.25;
+    return [1.0, 1.0 - 0.15 * s, 1.0 - 0.4 * s];
+  } else if (t < 0.7) {
+    const s = (t - 0.4) / 0.3;
+    return [1.0, 0.85 - 0.35 * s, 0.6 - 0.45 * s];
+  } else {
+    const s = (t - 0.7) / 0.3;
+    return [1.0 - 0.15 * s, 0.5 - 0.25 * s, 0.15 - 0.1 * s];
+  }
+}
+
+// Disk particle data
+const diskRadii  = new Float32Array(DISK_PARTICLES);
+const diskAngles = new Float32Array(DISK_PARTICLES);
+const diskHeights = new Float32Array(DISK_PARTICLES);
+const diskSpeeds = new Float32Array(DISK_PARTICLES);
+
+const diskPositionsArr = new Float32Array(DISK_PARTICLES * 3);
+const diskColorsArr    = new Float32Array(DISK_PARTICLES * 3);
+
+for (let i = 0; i < DISK_PARTICLES; i++) {
+  // Concentrate particles toward inner edge
+  const r = R_ISCO + (R_OUTER - R_ISCO) * Math.pow(Math.random(), 0.55);
+  diskRadii[i] = r;
+  // Spiral arm structure: angle offset proportional to radius
+  diskAngles[i] = Math.random() * Math.PI * 2 + r * 3.2;
+  // Disk thickness increases with radius (flared disk)
+  const thickness = 0.03 * (1 + (r - R_ISCO) / (R_OUTER - R_ISCO) * 2);
+  diskHeights[i] = gaussianRandom() * thickness;
+  // Keplerian angular velocity with slight variation
+  diskSpeeds[i] = (1.0 / Math.pow(r, 1.5)) * (0.92 + Math.random() * 0.16);
+
+  // Set initial positions
+  const a = diskAngles[i];
+  diskPositionsArr[i * 3]     = r * Math.cos(a);
+  diskPositionsArr[i * 3 + 1] = diskHeights[i];
+  diskPositionsArr[i * 3 + 2] = r * Math.sin(a);
+
+  // Set colors
+  const [cr, cg, cb] = diskColor(r);
+  diskColorsArr[i * 3]     = cr;
+  diskColorsArr[i * 3 + 1] = cg;
+  diskColorsArr[i * 3 + 2] = cb;
+}
+
+const diskGeo = new THREE.BufferGeometry();
+diskGeo.setAttribute('position', new THREE.BufferAttribute(diskPositionsArr, 3));
+diskGeo.setAttribute('color', new THREE.BufferAttribute(diskColorsArr, 3));
+const diskMat = new THREE.PointsMaterial({
+  size: 0.055,
+  blending: THREE.NormalBlending,
+  depthWrite: true,
+  depthTest: true,
+  vertexColors: true,
+  transparent: false
+});
+const diskPoints = new THREE.Points(diskGeo, diskMat);
+scene.add(diskPoints);
+
+// ═══════════════════════════════════════════
+// Gravitational lensing ghost arc
+// ═══════════════════════════════════════════
+const ghostRadii  = new Float32Array(GHOST_PARTICLES);
+const ghostAngles = new Float32Array(GHOST_PARTICLES);
+const ghostHeights = new Float32Array(GHOST_PARTICLES);
+const ghostSpeeds = new Float32Array(GHOST_PARTICLES);
+
+const ghostPositionsArr = new Float32Array(GHOST_PARTICLES * 3);
+const ghostColorsArr    = new Float32Array(GHOST_PARTICLES * 3);
+
+for (let i = 0; i < GHOST_PARTICLES; i++) {
+  // Source radii: inner to mid disk (most affected by lensing)
+  const r = R_ISCO + (R_OUTER * 0.65 - R_ISCO) * Math.pow(Math.random(), 0.7);
+  ghostRadii[i] = r;
+  ghostAngles[i] = Math.random() * Math.PI * 2;
+
+  // Lensing height: h ≈ sqrt(r² - R_PHOTON²) * scale
+  const hSq = r * r - R_PHOTON * R_PHOTON;
+  const h = hSq > 0 ? Math.sqrt(hSq) * 0.75 : 0;
+  ghostHeights[i] = h + gaussianRandom() * 0.06;
+
+  // Same orbital speed as disk at this radius
+  ghostSpeeds[i] = (1.0 / Math.pow(r, 1.5)) * (0.92 + Math.random() * 0.16);
+
+  const a = ghostAngles[i];
+  ghostPositionsArr[i * 3]     = r * Math.cos(a);
+  ghostPositionsArr[i * 3 + 1] = h;
+  ghostPositionsArr[i * 3 + 2] = r * Math.sin(a);
+
+  // Dimmer, slightly bluer version of disk color
+  const [cr, cg, cb] = diskColor(r);
+  const dim = 0.35 + Math.random() * 0.2;
+  ghostColorsArr[i * 3]     = cr * dim * 1.05;
+  ghostColorsArr[i * 3 + 1] = cg * dim * 1.05;
+  ghostColorsArr[i * 3 + 2] = cb * dim;
+}
+
+const ghostGeo = new THREE.BufferGeometry();
+ghostGeo.setAttribute('position', new THREE.BufferAttribute(ghostPositionsArr, 3));
+ghostGeo.setAttribute('color', new THREE.BufferAttribute(ghostColorsArr, 3));
+const ghostMat = new THREE.PointsMaterial({
+  size: 0.04,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  depthTest: true,
+  vertexColors: true,
+  transparent: true,
+  opacity: 0.7
+});
+const ghostPoints = new THREE.Points(ghostGeo, ghostMat);
+scene.add(ghostPoints);
+
+// ═══════════════════════════════════════════
+// Update functions
+// ═══════════════════════════════════════════
+function updateDiskPositions() {
+  const pos = diskGeo.attributes.position.array;
+  for (let i = 0; i < DISK_PARTICLES; i++) {
+    const a = diskAngles[i];
+    const r = diskRadii[i];
+    pos[i * 3]     = r * Math.cos(a);
+    pos[i * 3 + 1] = diskHeights[i];
+    pos[i * 3 + 2] = r * Math.sin(a);
+  }
+  diskGeo.attributes.position.needsUpdate = true;
+}
+
+function updateGhostPositions() {
+  const pos = ghostGeo.attributes.position.array;
+  for (let i = 0; i < GHOST_PARTICLES; i++) {
+    const a = ghostAngles[i];
+    const r = ghostRadii[i];
+    pos[i * 3]     = r * Math.cos(a);
+    pos[i * 3 + 1] = ghostHeights[i];
+    pos[i * 3 + 2] = r * Math.sin(a);
+  }
+  ghostGeo.attributes.position.needsUpdate = true;
+}
+
+function step(dt) {
+  // Update disk particle angles
+  for (let i = 0; i < DISK_PARTICLES; i++) {
+    diskAngles[i] += diskSpeeds[i] * dt;
+  }
+  updateDiskPositions();
+
+  // Update ghost particle angles
+  for (let i = 0; i < GHOST_PARTICLES; i++) {
+    ghostAngles[i] += ghostSpeeds[i] * dt;
+  }
+  updateGhostPositions();
+}
+
+// ═══════════════════════════════════════════
+// Animation loop
+// ═══════════════════════════════════════════
+const clock = new THREE.Clock();
+let accumulatedDt = 0;
+const FIXED_DT = 0.016; // ~60fps base timestep
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const rawDt = Math.min(clock.getDelta(), 0.1);
+
+  if (!paused) {
+    accumulatedDt += rawDt;
+    const stepsPerFrame = STEPS_PER_FRAME_BASE * speed;
+    const effectiveDt = FIXED_DT * speed;
+
+    let steps = 0;
+    while (accumulatedDt >= FIXED_DT && steps < stepsPerFrame * 2) {
+      step(FIXED_DT);
+      accumulatedDt -= FIXED_DT;
+      steps++;
+    }
+    // If we fell behind, don't spiral
+    if (steps === 0 && accumulatedDt > 0) {
+      step(accumulatedDt);
+      accumulatedDt = 0;
+    }
+  }
+
+  controls.update();
+  composer.render();
+}
+
+// ═══════════════════════════════════════════
+// Reset
+// ═══════════════════════════════════════════
+function resetAngles() {
+  for (let i = 0; i < DISK_PARTICLES; i++) {
+    diskAngles[i] = Math.random() * Math.PI * 2 + diskRadii[i] * 3.2;
+  }
+  for (let i = 0; i < GHOST_PARTICLES; i++) {
+    ghostAngles[i] = Math.random() * Math.PI * 2;
+  }
+  updateDiskPositions();
+  updateGhostPositions();
+}
+
+// ═══════════════════════════════════════════
+// UI controls
+// ═══════════════════════════════════════════
+const speedSlider = document.getElementById('speed-slider');
+const speedVal    = document.getElementById('speed-val');
+const btnPause    = document.getElementById('btn-pause');
+const btnReset    = document.getElementById('btn-reset');
+const btnTopview  = document.getElementById('btn-topview');
+
+speedSlider.addEventListener('input', () => {
+  speed = parseInt(speedSlider.value);
+  speedVal.textContent = speed;
+});
+
+btnPause.addEventListener('click', () => {
+  paused = !paused;
+  btnPause.textContent = paused ? t('play') : t('pause');
+});
+
+btnReset.addEventListener('click', () => {
+  resetAngles();
+  accumulatedDt = 0;
+});
+
+btnTopview.addEventListener('click', () => {
+  // Animate to top-down view
+  const targetPos = new THREE.Vector3(0, 13, 0.01);
+  const targetLook = new THREE.Vector3(0, 0, 0);
+
+  const startPos = camera.position.clone();
+  const startTarget = controls.target.clone();
+  const startTime = performance.now();
+  const duration = 1200;
+
+  function animateTopView(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1.0);
+    // Ease in-out
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+    camera.position.lerpVectors(startPos, targetPos, ease);
+    controls.target.lerpVectors(startTarget, targetLook, ease);
+    controls.update();
+
+    if (t < 1.0) {
+      requestAnimationFrame(animateTopView);
+    }
+  }
+  requestAnimationFrame(animateTopView);
+});
+
+// ═══════════════════════════════════════════
+// Resize handler
+// ═══════════════════════════════════════════
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ═══════════════════════════════════════════
+// Keyboard shortcuts
+// ═══════════════════════════════════════════
+window.addEventListener('keydown', (e) => {
+  switch (e.key.toLowerCase()) {
+    case ' ':
+      e.preventDefault();
+      btnPause.click();
+      break;
+    case 'r':
+      if (!e.ctrlKey && !e.metaKey) { btnReset.click(); }
+      break;
+    case 't':
+      if (!e.ctrlKey && !e.metaKey) { btnTopview.click(); }
+      break;
+  }
+});
+
+// ═══════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════
+updateLangUI();
+animate();
+</script>
+</body>
+</html>
