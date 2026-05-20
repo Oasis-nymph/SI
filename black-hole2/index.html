@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>黑洞吸积盘 | Black Hole Accretion Disk</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  background: #000005;
+  overflow: hidden;
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans SC", -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  height: 100vh;
+  width: 100vw;
+}
+
+#container {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+}
+
+#panel {
+  position: fixed;
+  z-index: 10;
+  top: 24px;
+  left: 24px;
+  width: 312px;
+  background: rgba(8, 8, 24, 0.72);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 14px;
+  padding: 22px 20px 18px;
+  color: #d0d0dc;
+  transition: opacity 0.3s;
+}
+
+#panel h1 {
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #f0a040;
+  margin-bottom: 2px;
+}
+#panel h2 {
+  font-size: 0.82rem;
+  font-weight: 400;
+  color: #8888a8;
+  letter-spacing: 0.05em;
+  margin-bottom: 10px;
+}
+#panel p.intro {
+  font-size: 0.76rem;
+  line-height: 1.5;
+  color: #aab;
+  margin-bottom: 12px;
+  border-left: 2px solid rgba(240, 160, 64, 0.4);
+  padding-left: 10px;
+}
+
+#docs-toggle {
+  font-size: 0.74rem;
+  color: #99b;
+  cursor: pointer;
+  margin-bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.18s;
+  user-select: none;
+}
+#docs-toggle:hover { color: #f0a040; }
+#docs-toggle .arrow {
+  display: inline-block;
+  transition: transform 0.25s;
+  font-size: 0.65rem;
+}
+#docs-toggle.open .arrow { transform: rotate(90deg); }
+
+#docs-content {
+  margin-bottom: 12px;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+#docs-content.open { max-height: 400px; overflow-y: auto; }
+.docs-section { margin-bottom: 8px; }
+.docs-section h4 {
+  font-size: 0.7rem;
+  color: #d8a058;
+  margin-bottom: 3px;
+  font-weight: 600;
+}
+.docs-section p {
+  font-size: 0.69rem;
+  line-height: 1.5;
+  color: #99a;
+}
+#docs-content::-webkit-scrollbar { width: 3px; }
+#docs-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+
+.legend {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-bottom: 12px;
+  font-size: 0.71rem;
+  color: #99a;
+}
+.legend-item { display: flex; align-items: center; gap: 8px; }
+.legend-dot {
+  width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+}
+.legend-dot.inner { background: #aaccff; box-shadow: 0 0 6px rgba(170,200,255,0.6); }
+.legend-dot.mid   { background: #ffcc66; box-shadow: 0 0 6px rgba(255,200,100,0.5); }
+.legend-dot.outer { background: #ff5511; box-shadow: 0 0 6px rgba(255,80,20,0.4); }
+.legend-dot.knot  { background: #ffffff; box-shadow: 0 0 8px rgba(255,255,255,0.9); }
+.legend-dot.infall { background: #88ddff; box-shadow: 0 0 6px rgba(120,220,255,0.6); }
+
+.ctrl-row {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.ctrl-row label {
+  width: 64px; font-size: 0.76rem; color: #bcc; white-space: nowrap; flex-shrink: 0;
+}
+input[type="range"] {
+  -webkit-appearance: none; appearance: none; flex: 1; height: 5px;
+  border-radius: 3px; background: rgba(255,255,255,0.10); outline: none; cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%;
+  background: #f0a040; border: 2px solid rgba(0,0,0,0.3); cursor: pointer;
+  transition: transform 0.12s;
+}
+input[type="range"]::-webkit-slider-thumb:active { transform: scale(1.2); }
+.val {
+  width: 30px; text-align: right; font-size: 0.72rem; color: #99a;
+  font-family: "SF Mono", "Cascadia Code", "Consolas", monospace; flex-shrink: 0;
+}
+
+.btn-row {
+  display: flex; gap: 8px; margin-top: 12px;
+}
+.btn-row button {
+  flex: 1; padding: 7px 0; border-radius: 7px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06); color: #ccd;
+  font-size: 0.76rem; cursor: pointer; font-family: inherit;
+  transition: background 0.18s, border-color 0.18s;
+}
+.btn-row button:hover {
+  background: rgba(255,255,255,0.13); border-color: rgba(255,255,255,0.24);
+}
+.btn-row button.accent {
+  border-color: rgba(240,160,64,0.35); color: #f0a040;
+}
+.btn-row button.accent:hover { background: rgba(240,160,64,0.12); }
+
+#lang-btn {
+  position: fixed; z-index: 10; top: 24px; right: 24px;
+  padding: 6px 14px; border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(8,8,24,0.65); backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px); color: #bcc;
+  font-size: 0.76rem; cursor: pointer; font-family: inherit;
+  letter-spacing: 0.04em; transition: background 0.18s, border-color 0.18s;
+}
+#lang-btn:hover { background: rgba(255,255,255,0.10); }
+
+#hint {
+  position: fixed; z-index: 5; bottom: 18px; left: 50%;
+  transform: translateX(-50%); font-size: 0.68rem;
+  color: rgba(255,255,255,0.14); letter-spacing: 0.04em; pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  #panel {
+    top: auto; bottom: 0; left: 0; right: 0; width: 100%;
+    border-radius: 14px 14px 0 0; padding: 14px 14px 10px;
+  }
+  #panel p.intro, #docs-toggle, #docs-content, .legend { display: none; }
+  #hint { bottom: 180px; }
+}
+</style>
+</head>
+<body>
+
+<div id="container"></div>
+
+<div id="panel">
+  <h1 data-i18n="title">黑洞吸积盘</h1>
+  <h2 data-i18n="subtitle">Black Hole Accretion Disk</h2>
+  <p class="intro" data-i18n="intro">
+    超大质量黑洞被旋转的吸积盘环绕。物质沿开普勒轨道螺旋下落，内区温度可达数百万度；引力透镜使盘背后方的光弯曲，形成幽灵般的光弧。亮结在湍流气体中不断形成又消散。
+  </p>
+  <div id="docs-toggle"><span data-i18n="docs_toggle">详细介绍</span> <span class="arrow">&#9654;</span></div>
+  <div id="docs-content">
+    <div class="docs-section">
+      <h4 data-i18n="docs_structure_title">结构解析</h4>
+      <p data-i18n="docs_structure">事件视界（r = R<sub>s</sub>）| 光子球（r = 1.5 R<sub>s</sub>，亮环）| ISCO（r = 3 R<sub>s</sub>，盘内缘）| 吸积盘延伸至 ~8 R<sub>s</sub>。光子环由绕黑洞转圈后逃逸的光形成，多层同心环逐渐变暗。黑洞阴影约为视界的两倍大小。</p>
+    </div>
+    <div class="docs-section">
+      <h4 data-i18n="docs_doppler_title">多普勒效应</h4>
+      <p data-i18n="docs_doppler">从侧面看，盘左侧比右侧更亮——左侧发光气体朝观测者快速运动，相对论多普勒效应使其亮度增强；右侧气体远离而变暗。从正面俯视时，这种不对称性消失。</p>
+    </div>
+    <div class="docs-section">
+      <h4 data-i18n="docs_lensing_title">引力透镜与亮结</h4>
+      <p data-i18n="docs_lensing">黑洞引力弯曲来自盘背面光线的路径，形成悬浮在上方的扭曲光弧。磁场在搅动气体中缠绕扭曲，明亮的热结不断形成和消散，差速旋转将其拉伸剪切为明暗交替的光带。小行星等物质沿螺旋轨道坠入，留下渐变尾迹。</p>
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-dot inner"></span><span data-i18n="legend_inner">内盘 · 蓝白 10⁷ K</span></div>
+    <div class="legend-item"><span class="legend-dot mid"></span><span data-i18n="legend_mid">中盘 · 黄白 6000 K</span></div>
+    <div class="legend-item"><span class="legend-dot outer"></span><span data-i18n="legend_outer">外盘 · 红橙 3000 K</span></div>
+    <div class="legend-item"><span class="legend-dot knot"></span><span data-i18n="legend_knot">亮结 · 磁重联耀斑</span></div>
+    <div class="legend-item"><span class="legend-dot infall"></span><span data-i18n="legend_infall">坠入物质 · 螺旋尾迹</span></div>
+  </div>
+
+  <div class="ctrl-row">
+    <label data-i18n="speed_label">速度</label>
+    <input type="range" id="speed-slider" min="1" max="20" value="5" step="1">
+    <span class="val" id="speed-val">5</span>
+  </div>
+
+  <div class="btn-row">
+    <button id="btn-pause" class="accent" data-i18n="pause">暂 停</button>
+    <button id="btn-reset" data-i18n="reset">重 置</button>
+    <button id="btn-topview" data-i18n="topview">俯 视</button>
+  </div>
+</div>
+
+<button id="lang-btn">EN</button>
+
+<div id="hint" data-i18n="hint">拖拽旋转 · 滚轮缩放 · 右键平移 · 空格暂停 · T俯视</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+// ═══════════════════════════════════════════
+// i18n
+// ═══════════════════════════════════════════
+const i18n = {
+  zh: {
+    title: '黑洞吸积盘',
+    subtitle: 'Black Hole Accretion Disk',
+    intro: '超大质量黑洞被旋转的吸积盘环绕。物质沿开普勒轨道螺旋下落，内区温度可达数百万度；引力透镜使盘背后方的光弯曲，形成幽灵般的光弧。亮结在湍流气体中不断形成又消散。',
+    docs_toggle: '详细介绍',
+    docs_structure_title: '结构解析',
+    docs_structure: '事件视界（r = R<sub>s</sub>）| 光子球（r = 1.5 R<sub>s</sub>，亮环）| ISCO（r = 3 R<sub>s</sub>，盘内缘）| 吸积盘延伸至 ~8 R<sub>s</sub>。光子环由绕黑洞转圈后逃逸的光形成，多层同心环逐渐变暗。黑洞阴影约为视界的两倍大小。',
+    docs_doppler_title: '多普勒效应',
+    docs_doppler: '从侧面看，盘左侧比右侧更亮——左侧发光气体朝观测者快速运动，相对论多普勒效应使其亮度增强；右侧气体远离而变暗。从正面俯视时，这种不对称性消失。',
+    docs_lensing_title: '引力透镜与亮结',
+    docs_lensing: '黑洞引力弯曲来自盘背面光线的路径，形成悬浮在上方的扭曲光弧。磁场在搅动气体中缠绕扭曲，明亮的热结不断形成和消散，差速旋转将其拉伸剪切为明暗交替的光带。小行星等物质沿螺旋轨道坠入，留下渐变尾迹。',
+    legend_inner: '内盘 · 蓝白 10⁷ K',
+    legend_mid: '中盘 · 黄白 6000 K',
+    legend_outer: '外盘 · 红橙 3000 K',
+    legend_knot: '亮结 · 磁重联耀斑',
+    legend_infall: '坠入物质 · 螺旋尾迹',
+    speed_label: '速度',
+    pause: '暂 停',
+    play: '播 放',
+    reset: '重 置',
+    topview: '俯 视',
+    hint: '拖拽旋转 · 滚轮缩放 · 右键平移 · 空格暂停 · T俯视'
+  },
+  en: {
+    title: 'Black Hole Accretion Disk',
+    subtitle: 'Schwarzschild Black Hole — NASA-style Visualization',
+    intro: 'A supermassive black hole with a rotating accretion disk. Matter spirals inward on Keplerian orbits, the inner region glowing at millions of degrees. Gravitational lensing bends light from behind the disk into ghostly arcs. Bright knots constantly form and dissipate in the turbulent gas.',
+    docs_toggle: 'Details',
+    docs_structure_title: 'Structure',
+    docs_structure: 'Event horizon (r = R<sub>s</sub>) | Photon sphere (r = 1.5 R<sub>s</sub>, bright ring) | ISCO (r = 3 R<sub>s</sub>, inner disk edge) | Accretion disk extends to ~8 R<sub>s</sub>. The photon ring forms from light that circles the black hole before escaping — multiple concentric rings grow progressively fainter. The black hole shadow is ~2× the event horizon.',
+    docs_doppler_title: 'Doppler Beaming',
+    docs_doppler: 'Viewed from the side, the left of the disk appears brighter than the right — glowing gas on the left races toward the observer, and relativistic Doppler beaming boosts its brightness. Gas on the right recedes and appears dimmer. This asymmetry vanishes when the disk is viewed face-on.',
+    docs_lensing_title: 'Lensing & Bright Knots',
+    docs_lensing: 'The black hole bends light paths from the far side of the disk, creating a distorted arc suspended above. Magnetic fields twist and tangle in the churning gas — bright knots of hot plasma constantly form and dissipate, stretched and sheared by differential rotation into alternating light and dark lanes. Asteroids and other material spiral inward, leaving glowing gradient trails.',
+    legend_inner: 'Inner disk · Blue-white 10⁷ K',
+    legend_mid: 'Mid disk · Yellow-white 6000 K',
+    legend_outer: 'Outer disk · Red-orange 3000 K',
+    legend_knot: 'Bright knots · Flares',
+    legend_infall: 'Infalling matter · Trail',
+    speed_label: 'Speed',
+    pause: 'Pause',
+    play: 'Play',
+    reset: 'Reset',
+    topview: 'Top View',
+    hint: 'Drag to rotate · Scroll to zoom · Right-drag to pan · Space to pause · T top view'
+  }
+};
+
+let lang = 'zh';
+function t(key) { return i18n[lang][key]; }
+
+function updateLangUI() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    const k = el.getAttribute('data-i18n');
+    const val = t(k);
+    if (val.includes('<')) el.innerHTML = val;
+    else el.textContent = val;
+  });
+  document.getElementById('lang-btn').textContent = lang === 'zh' ? 'EN' : '中';
+  document.getElementById('btn-pause').textContent = paused ? t('play') : t('pause');
+}
+
+document.getElementById('lang-btn').addEventListener('click', () => {
+  lang = lang === 'zh' ? 'en' : 'zh';
+  updateLangUI();
+});
+
+// docs toggle
+const docsToggle = document.getElementById('docs-toggle');
+const docsContent = document.getElementById('docs-content');
+let docsOpen = false;
+docsToggle.addEventListener('click', () => {
+  docsOpen = !docsOpen;
+  docsOpen ? docsToggle.classList.add('open') : docsToggle.classList.remove('open');
+  docsOpen ? docsContent.classList.add('open') : docsContent.classList.remove('open');
+});
+
+// ═══════════════════════════════════════════
+// Constants
+// ═══════════════════════════════════════════
+const RS       = 1.0;
+const R_SHADOW = 2.0;
+const R_PHOTON = 1.5;
+const R_ISCO   = 3.0;
+const R_OUTER  = 8.0;
+const NUM_RINGS = 28;
+const NUM_KNOTS = 45;
+const NUM_INFALL = 15;
+const TRAIL_LEN = 70;
+const STAR_COUNT = 2000;
+
+let speed = 5;
+let paused = false;
+
+// ═══════════════════════════════════════════
+// Three.js setup
+// ═══════════════════════════════════════════
+const container = document.getElementById('container');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+container.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color('#000000');
+
+const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.3, 200);
+camera.position.set(7, 4.5, 11);
+camera.lookAt(0, 0.5, 0);
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const bloomPass = new UnrealBloomPass(
+  new THREE.Vector2(window.innerWidth, window.innerHeight),
+  1.6, 0.5, 0.06
+);
+composer.addPass(bloomPass);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.5, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.autoRotate = true;
+controls.autoRotateSpeed = 0.3;
+controls.minDistance = 3;
+controls.maxDistance = 40;
+controls.maxPolarAngle = Math.PI * 0.82;
+controls.update();
+
+// ═══════════════════════════════════════════
+// Starfield
+// ═══════════════════════════════════════════
+const starGeo = new THREE.BufferGeometry();
+const starPositions = new Float32Array(STAR_COUNT * 3);
+const starSizes = new Float32Array(STAR_COUNT);
+for (let i = 0; i < STAR_COUNT; i++) {
+  const r = 50 + Math.random() * 100;
+  const theta = Math.random() * Math.PI * 2;
+  const phi = Math.acos(2 * Math.random() - 1);
+  starPositions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+  starPositions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+  starPositions[i * 3 + 2] = r * Math.cos(phi);
+  starSizes[i] = 0.08 + Math.random() * 0.35;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+starGeo.setAttribute('size', new THREE.BufferAttribute(starSizes, 1));
+const starMat = new THREE.PointsMaterial({
+  color: 0x8899cc,
+  size: 0.18,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  transparent: true,
+  opacity: 0.35
+});
+scene.add(new THREE.Points(starGeo, starMat));
+
+// ═══════════════════════════════════════════
+// Gravity-distorted background stars (Einstein ring effect)
+// ═══════════════════════════════════════════
+const lensStarsCount = 600;
+const lensGeo = new THREE.BufferGeometry();
+const lensPositions = new Float32Array(lensStarsCount * 3);
+for (let i = 0; i < lensStarsCount; i++) {
+  const r = 2.2 + Math.random() * 3.5;
+  const theta = Math.random() * Math.PI * 2;
+  const phiBias = (Math.random() - 0.5) * 0.4;
+  const phi = Math.PI / 2 + phiBias;
+  lensPositions[i * 3]     = r * Math.sin(phi) * Math.cos(theta);
+  lensPositions[i * 3 + 1] = r * Math.cos(phi);
+  lensPositions[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+}
+lensGeo.setAttribute('position', new THREE.BufferAttribute(lensPositions, 3));
+const lensMat = new THREE.PointsMaterial({
+  color: 0xaaccff,
+  size: 0.06,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false,
+  transparent: true,
+  opacity: 0.25
+});
+const lensStars = new THREE.Points(lensGeo, lensMat);
+scene.add(lensStars);
+
+// ═══════════════════════════════════════════
+// Event horizon — pure black sphere
+// ═══════════════════════════════════════════
+const horizonGeo = new THREE.SphereGeometry(RS, 64, 64);
+const horizonMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+const horizon = new THREE.Mesh(horizonGeo, horizonMat);
+scene.add(horizon);
+
+// Black hole shadow (larger than event horizon)
+const shadowGeo = new THREE.SphereGeometry(R_SHADOW, 64, 64);
+const shadowMat = new THREE.MeshBasicMaterial({
+  color: 0x030308,
+  transparent: true,
+  opacity: 0.92
+});
+const shadowSphere = new THREE.Mesh(shadowGeo, shadowMat);
+scene.add(shadowSphere);
+
+// ═══════════════════════════════════════════
+// Temperature → color mapping
+// ═══════════════════════════════════════════
+function diskHexColor(r) {
+  const t = (r - R_ISCO) / (R_OUTER - R_ISCO);
+  let cr, cg, cb;
+  if (t < 0.1)        { const s = t / 0.1; cr = 0.55 + 0.45*s; cg = 0.65 + 0.35*s; cb = 0.95 + 0.05*s; }
+  else if (t < 0.3)   { const s = (t-0.1)/0.2; cr = 1.0; cg = 1.0 - 0.2*s; cb = 1.0 - 0.5*s; }
+  else if (t < 0.55)  { const s = (t-0.3)/0.25; cr = 1.0; cg = 0.8 - 0.35*s; cb = 0.5 - 0.4*s; }
+  else if (t < 0.8)   { const s = (t-0.55)/0.25; cr = 1.0 - 0.1*s; cg = 0.45 - 0.2*s; cb = 0.1 - 0.05*s; }
+  else                { const s = (t-0.8)/0.2; cr = 0.9 - 0.2*s; cg = 0.25 - 0.1*s; cb = 0.05 - 0.03*s; }
+  return new THREE.Color(cr, cg, cb);
+}
+
+// ═══════════════════════════════════════════
+// Accretion disk — concentric glowing rings (tori)
+// ═══════════════════════════════════════════
+const diskRings = [];
+const ringGroup = new THREE.Group();
+scene.add(ringGroup);
+
+for (let i = 0; i < NUM_RINGS; i++) {
+  const r = R_ISCO + (R_OUTER - R_ISCO) * (i / (NUM_RINGS - 1));
+  const tubeR = 0.04 + 0.07 * (i / (NUM_RINGS - 1));
+  const color = diskHexColor(r);
+  const segments = 110;
+
+  // Full ring
+  const torusGeo = new THREE.TorusGeometry(r, tubeR, 6, segments);
+  const torusMat = new THREE.MeshBasicMaterial({ color });
+  const torus = new THREE.Mesh(torusGeo, torusMat);
+  torus.rotation.x = Math.PI / 2;
+  ringGroup.add(torus);
+
+  // Brighter left half (Doppler approaching side)
+  const brightColor = color.clone().multiplyScalar(1.5);
+  const halfGeo = new THREE.TorusGeometry(r, tubeR * 0.7, 4, segments / 2, Math.PI, Math.PI / 2);
+  const halfMat = new THREE.MeshBasicMaterial({ color: brightColor });
+  const halfTorus = new THREE.Mesh(halfGeo, halfMat);
+  halfTorus.rotation.x = Math.PI / 2;
+  ringGroup.add(halfTorus);
+
+  // Darker right half (Doppler receding side)
+  const dimColor = color.clone().multiplyScalar(0.55);
+  const dimGeo = new THREE.TorusGeometry(r, tubeR * 0.7, 4, segments / 2, Math.PI, -Math.PI / 2);
+  const dimMat = new THREE.MeshBasicMaterial({ color: dimColor });
+  const dimTorus = new THREE.Mesh(dimGeo, dimMat);
+  dimTorus.rotation.x = Math.PI / 2;
+  ringGroup.add(dimTorus);
+
+  // Keplerian angular speed
+  const omega = 1.0 / Math.pow(r, 1.5);
+  diskRings.push({ radius: r, omega, meshes: [torus, halfTorus, dimTorus] });
+}
+
+// ═══════════════════════════════════════════
+// Photon ring — 3 concentric thin tori at photon sphere
+// ═══════════════════════════════════════════
+function createPhotonRing(radius, tube, color, opacity) {
+  const geo = new THREE.TorusGeometry(radius, tube, 12, 300);
+  const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = Math.PI / 2;
+  return mesh;
+}
+
+const photonGroup = new THREE.Group();
+photonGroup.add(createPhotonRing(R_PHOTON, 0.012, 0xffeedd, 1.0));
+photonGroup.add(createPhotonRing(R_PHOTON + 0.04, 0.007, 0xddccaa, 0.6));
+photonGroup.add(createPhotonRing(R_PHOTON + 0.09, 0.004, 0xbbaa88, 0.3));
+scene.add(photonGroup);
+
+// ═══════════════════════════════════════════
+// Gravitational lensing ghost arcs above the black hole
+// ═══════════════════════════════════════════
+const ghostGroup = new THREE.Group();
+scene.add(ghostGroup);
+
+const NUM_GHOST_RINGS = 10;
+for (let i = 0; i < NUM_GHOST_RINGS; i++) {
+  const srcR = R_ISCO + (R_OUTER * 0.55 - R_ISCO) * (i / (NUM_GHOST_RINGS - 1));
+  const hSq = srcR * srcR - R_PHOTON * R_PHOTON;
+  const h = hSq > 0 ? Math.sqrt(hSq) * 0.72 : 0;
+  const apparentR = srcR * 0.88;
+  const color = diskHexColor(srcR).multiplyScalar(0.5);
+  const ghostGeo = new THREE.TorusGeometry(apparentR, 0.015, 4, 140);
+  const ghostMat = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0.35
+  });
+  const ghostTorus = new THREE.Mesh(ghostGeo, ghostMat);
+  ghostTorus.rotation.x = Math.PI / 2;
+  ghostTorus.position.y = h;
+  ghostGroup.add(ghostTorus);
+
+  const omega = 1.0 / Math.pow(srcR, 1.5);
+  diskRings.push({ radius: srcR, omega, meshes: [ghostTorus], isGhost: true, baseY: h });
+}
+
+// ═══════════════════════════════════════════
+// Inner corona glow (faint torus near event horizon)
+// ═══════════════════════════════════════════
+const coronaGeo = new THREE.TorusGeometry(1.15, 0.06, 6, 200);
+const coronaMat = new THREE.MeshBasicMaterial({
+  color: 0x443322,
+  transparent: true,
+  opacity: 0.4
+});
+const corona = new THREE.Mesh(coronaGeo, coronaMat);
+corona.rotation.x = Math.PI / 2;
+scene.add(corona);
+
+// ═══════════════════════════════════════════
+// Bright knots — form and dissipate in the disk
+// ═══════════════════════════════════════════
+const knots = [];
+const knotGroup = new THREE.Group();
+scene.add(knotGroup);
+
+function spawnKnot() {
+  const ringIdx = Math.floor(Math.random() * NUM_RINGS);
+  const diskRing = diskRings[ringIdx];
+  if (diskRing.isGhost) return;
+  const r = diskRing.radius;
+  const angle = Math.random() * Math.PI * 2;
+  const y = (Math.random() - 0.5) * 0.06;
+
+  const size = 0.03 + Math.random() * 0.07;
+  const knotGeo = new THREE.SphereGeometry(size, 8, 8);
+  const knotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const knotMesh = new THREE.Mesh(knotGeo, knotMat);
+  knotMesh.position.set(r * Math.cos(angle), y, r * Math.sin(angle));
+  knotGroup.add(knotMesh);
+
+  knots.push({
+    mesh: knotMesh,
+    ringIdx,
+    angle,
+    y,
+    life: 0,
+    maxLife: 1.5 + Math.random() * 5.0,
+    radius: r,
+    omega: diskRing.omega,
+    phase: Math.random() > 0.5 ? 'rise' : 'hold'
+  });
+}
+
+// Ensure initial knots
+for (let i = 0; i < 20; i++) {
+  const ringIdx = Math.floor(Math.random() * NUM_RINGS);
+  const diskRing = diskRings[ringIdx];
+  if (diskRing.isGhost) continue;
+  const r = diskRing.radius;
+  const angle = Math.random() * Math.PI * 2;
+  const y = (Math.random() - 0.5) * 0.06;
+  const size = 0.03 + Math.random() * 0.07;
+  const knotGeo = new THREE.SphereGeometry(size, 8, 8);
+  const knotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const knotMesh = new THREE.Mesh(knotGeo, knotMat);
+  knotMesh.position.set(r * Math.cos(angle), y, r * Math.sin(angle));
+  knotGroup.add(knotMesh);
+  knots.push({
+    mesh: knotMesh,
+    ringIdx, angle, y,
+    life: Math.random() * 5,
+    maxLife: 1.5 + Math.random() * 5.0,
+    radius: r,
+    omega: diskRing.omega,
+    phase: Math.random() > 0.5 ? 'rise' : 'hold'
+  });
+}
+
+// ═══════════════════════════════════════════
+// Infalling objects with gradient trails
+// ═══════════════════════════════════════════
+const infalling = [];
+const infallGroup = new THREE.Group();
+scene.add(infallGroup);
+
+function createTrailLine() {
+  const positionsArr = new Float32Array(TRAIL_LEN * 3);
+  const colorsArr = new Float32Array(TRAIL_LEN * 3);
+  for (let i = 0; i < TRAIL_LEN; i++) {
+    positionsArr[i * 3] = 0;
+    positionsArr[i * 3 + 1] = -999;
+    positionsArr[i * 3 + 2] = 0;
+    colorsArr[i * 3] = 1;
+    colorsArr[i * 3 + 1] = 1;
+    colorsArr[i * 3 + 2] = 1;
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positionsArr, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colorsArr, 3));
+  geo.setDrawRange(0, 0);
+  const mat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+    transparent: true,
+    opacity: 0.8
+  });
+  return { line: new THREE.Line(geo, mat), positions: positionsArr, colors: colorsArr, count: 0 };
+}
+
+function spawnInfalling() {
+  const r = R_ISCO + 1.5 + Math.random() * (R_OUTER - R_ISCO - 1.5);
+  const angle = Math.random() * Math.PI * 2;
+  const y = (Math.random() - 0.5) * 0.15;
+  const headGeo = new THREE.SphereGeometry(0.04, 8, 8);
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xaaddff });
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.position.set(r * Math.cos(angle), y, r * Math.sin(angle));
+  infallGroup.add(head);
+
+  const trail = createTrailLine();
+  infallGroup.add(trail.line);
+
+  // Radial infall: starts slow, accelerates as it spirals in
+  const radialSpeed = 0.08 + Math.random() * 0.2;
+  const tangentialSpeed = 1.0 / Math.pow(r, 1.5) * (0.3 + Math.random() * 0.5);
+
+  infalling.push({
+    head, trail, r, angle, y,
+    radialSpeed,
+    tangentialSpeed,
+    trailHistory: [],
+    alive: true
+  });
+}
+
+// Pre-spawn some infalling objects at various stages
+for (let i = 0; i < NUM_INFALL; i++) {
+  spawnInfalling();
+  // Advance them to random stages
+  const obj = infalling[infalling.length - 1];
+  const advance = Math.random() * 8;
+  for (let s = 0; s < advance * 60; s++) {
+    obj.r -= obj.radialSpeed * (1 + 2 * (R_OUTER - obj.r) / (R_OUTER - R_ISCO)) * 0.016;
+    if (obj.r < R_ISCO) { obj.alive = false; break; }
+    obj.angle += obj.tangentialSpeed * 0.016 * (1 + (R_OUTER - obj.r) / (R_OUTER - R_ISCO));
+    obj.trailHistory.push({ x: obj.r * Math.cos(obj.angle), y: obj.y, z: obj.r * Math.sin(obj.angle) });
+    if (obj.trailHistory.length > TRAIL_LEN) obj.trailHistory.shift();
+  }
+}
+
+// ═══════════════════════════════════════════
+// Update functions
+// ═══════════════════════════════════════════
+function updateRingAngles(dt) {
+  for (const ring of diskRings) {
+    ring.currentAngle = (ring.currentAngle || 0) + ring.omega * dt;
+    const a = ring.currentAngle;
+    for (const mesh of ring.meshes) {
+      mesh.rotation.z = a;
+    }
+  }
+}
+
+function updateKnots(dt) {
+  for (let i = knots.length - 1; i >= 0; i--) {
+    const k = knots[i];
+    k.life += dt;
+    k.angle += k.omega * dt;
+
+    // Update position
+    k.mesh.position.x = k.radius * Math.cos(k.angle);
+    k.mesh.position.z = k.radius * Math.sin(k.angle);
+
+    // Brightness cycle: rise → hold → fade
+    let brightness;
+    const tLife = k.life / k.maxLife;
+    if (tLife < 0.15) {
+      brightness = tLife / 0.15;
+    } else if (tLife < 0.65) {
+      brightness = 1.0;
+    } else if (tLife < 1.0) {
+      brightness = 1.0 - (tLife - 0.65) / 0.35;
+    } else {
+      brightness = 0;
+    }
+
+    if (k.life >= k.maxLife || brightness <= 0) {
+      knotGroup.remove(k.mesh);
+      k.mesh.geometry.dispose();
+      k.mesh.material.dispose();
+      knots.splice(i, 1);
+    } else {
+      const s = 0.4 + brightness * 0.6;
+      k.mesh.scale.setScalar(s);
+      k.mesh.material.color.setRGB(brightness, brightness * 0.9, brightness * 0.7);
+      k.mesh.material.opacity = brightness;
+      k.mesh.material.transparent = true;
+    }
+  }
+
+  // Spawn new knots probabilistically
+  if (Math.random() < 0.3 && knots.length < NUM_KNOTS) {
+    spawnKnot();
+    if (Math.random() < 0.4) spawnKnot();
+  }
+}
+
+function updateInfalling(dt) {
+  for (let i = infalling.length - 1; i >= 0; i--) {
+    const obj = infalling[i];
+    if (!obj.alive) {
+      // Respawn
+      infallGroup.remove(obj.head);
+      infallGroup.remove(obj.trail.line);
+      obj.head.geometry.dispose();
+      obj.head.material.dispose();
+      obj.trail.line.geometry.dispose();
+      obj.trail.line.material.dispose();
+      infalling.splice(i, 1);
+      spawnInfalling();
+      continue;
+    }
+
+    // Acceleration increases as object gets closer (gravity)
+    const frac = (obj.r - R_ISCO) / (R_OUTER - R_ISCO);
+    const accel = 1.0 + 3.0 * (1.0 - frac);
+    obj.r -= obj.radialSpeed * accel * dt;
+    obj.angle += obj.tangentialSpeed * accel * dt;
+
+    if (obj.r <= R_ISCO) {
+      obj.alive = false;
+      continue;
+    }
+
+    const px = obj.r * Math.cos(obj.angle);
+    const pz = obj.r * Math.sin(obj.angle);
+    obj.head.position.set(px, obj.y, pz);
+
+    // Record trail
+    obj.trailHistory.push({ x: px, y: obj.y, z: pz });
+    if (obj.trailHistory.length > TRAIL_LEN) obj.trailHistory.shift();
+
+    // Update trail geometry
+    const trail = obj.trail;
+    const hist = obj.trailHistory;
+    trail.count = hist.length;
+
+    for (let j = 0; j < TRAIL_LEN; j++) {
+      if (j < hist.length) {
+        const p = hist[j];
+        const idx = j * 3;
+        trail.positions[idx]     = p.x;
+        trail.positions[idx + 1] = p.y;
+        trail.positions[idx + 2] = p.z;
+        // Gradient: tail is warm/dim, head is bright white-blue
+        const tNorm = j / Math.max(hist.length - 1, 1);
+        trail.colors[idx]     = 0.3 + tNorm * 0.7;
+        trail.colors[idx + 1] = 0.2 + tNorm * 0.7;
+        trail.colors[idx + 2] = 0.15 + tNorm * 0.85;
+      } else {
+        const idx = j * 3;
+        trail.positions[idx]     = 0;
+        trail.positions[idx + 1] = -999;
+        trail.positions[idx + 2] = 0;
+        trail.colors[idx]     = 0;
+        trail.colors[idx + 1] = 0;
+        trail.colors[idx + 2] = 0;
+      }
+    }
+
+    trail.line.geometry.setDrawRange(0, hist.length);
+    trail.line.geometry.attributes.position.needsUpdate = true;
+    trail.line.geometry.attributes.color.needsUpdate = true;
+  }
+
+  // Maintain infalling count
+  while (infalling.length < NUM_INFALL) spawnInfalling();
+}
+
+// ═══════════════════════════════════════════
+// Animation loop
+// ═══════════════════════════════════════════
+const clock = new THREE.Clock();
+let accDt = 0;
+const FIXED_DT = 0.016;
+const BASE_STEPS = 2;
+
+function animate() {
+  requestAnimationFrame(animate);
+
+  const rawDt = Math.min(clock.getDelta(), 0.1);
+
+  if (!paused) {
+    accDt += rawDt;
+    const maxSteps = BASE_STEPS * speed * 2;
+    let steps = 0;
+    while (accDt >= FIXED_DT && steps < maxSteps) {
+      updateRingAngles(FIXED_DT * speed);
+      updateKnots(FIXED_DT);
+      updateInfalling(FIXED_DT);
+      accDt -= FIXED_DT;
+      steps++;
+    }
+    if (steps === 0 && accDt > 0) {
+      updateRingAngles(accDt * speed);
+      updateKnots(accDt);
+      updateInfalling(accDt);
+      accDt = 0;
+    }
+  }
+
+  // Subtle lens star rotation
+  lensStars.rotation.y += 0.0003 * (paused ? 0 : speed);
+
+  controls.update();
+  composer.render();
+}
+
+// ═══════════════════════════════════════════
+// Reset
+// ═══════════════════════════════════════════
+function resetAll() {
+  // Reset ring angles
+  for (const ring of diskRings) {
+    ring.currentAngle = Math.random() * Math.PI * 2;
+    for (const mesh of ring.meshes) {
+      mesh.rotation.z = ring.currentAngle;
+    }
+  }
+  // Clear and respawn knots
+  for (const k of knots) {
+    knotGroup.remove(k.mesh);
+    k.mesh.geometry.dispose();
+    k.mesh.material.dispose();
+  }
+  knots.length = 0;
+  for (let i = 0; i < 20; i++) {
+    const ringIdx = Math.floor(Math.random() * NUM_RINGS);
+    const diskRing = diskRings[ringIdx];
+    if (diskRing.isGhost) continue;
+    const r = diskRing.radius;
+    const angle = Math.random() * Math.PI * 2;
+    const y = (Math.random() - 0.5) * 0.06;
+    const size = 0.03 + Math.random() * 0.07;
+    const knotGeo = new THREE.SphereGeometry(size, 8, 8);
+    const knotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const knotMesh = new THREE.Mesh(knotGeo, knotMat);
+    knotMesh.position.set(r * Math.cos(angle), y, r * Math.sin(angle));
+    knotGroup.add(knotMesh);
+    knots.push({
+      mesh: knotMesh, ringIdx, angle, y,
+      life: Math.random() * 5,
+      maxLife: 1.5 + Math.random() * 5.0,
+      radius: r, omega: diskRing.omega,
+      phase: Math.random() > 0.5 ? 'rise' : 'hold'
+    });
+  }
+  // Clear and respawn infalling
+  for (const obj of infalling) {
+    infallGroup.remove(obj.head);
+    infallGroup.remove(obj.trail.line);
+    obj.head.geometry.dispose();
+    obj.head.material.dispose();
+    obj.trail.line.geometry.dispose();
+    obj.trail.line.material.dispose();
+  }
+  infalling.length = 0;
+  for (let i = 0; i < NUM_INFALL; i++) spawnInfalling();
+  accDt = 0;
+}
+
+// ═══════════════════════════════════════════
+// UI controls
+// ═══════════════════════════════════════════
+document.getElementById('speed-slider').addEventListener('input', e => {
+  speed = parseInt(e.target.value);
+  document.getElementById('speed-val').textContent = speed;
+});
+
+document.getElementById('btn-pause').addEventListener('click', () => {
+  paused = !paused;
+  document.getElementById('btn-pause').textContent = paused ? t('play') : t('pause');
+});
+
+document.getElementById('btn-reset').addEventListener('click', resetAll);
+
+document.getElementById('btn-topview').addEventListener('click', () => {
+  const targetPos = new THREE.Vector3(0, 13, 0.01);
+  const targetLook = new THREE.Vector3(0, 0, 0);
+  const startPos = camera.position.clone();
+  const startTarget = controls.target.clone();
+  const startTime = performance.now();
+  const duration = 1200;
+
+  function animTopView(now) {
+    const elapsed = now - startTime;
+    const t = Math.min(elapsed / duration, 1.0);
+    const ease = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    camera.position.lerpVectors(startPos, targetPos, ease);
+    controls.target.lerpVectors(startTarget, targetLook, ease);
+    controls.update();
+    if (t < 1.0) requestAnimationFrame(animTopView);
+  }
+  requestAnimationFrame(animTopView);
+});
+
+// ═══════════════════════════════════════════
+// Resize
+// ═══════════════════════════════════════════
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ═══════════════════════════════════════════
+// Keyboard shortcuts
+// ═══════════════════════════════════════════
+window.addEventListener('keydown', (e) => {
+  switch (e.key.toLowerCase()) {
+    case ' ':
+      e.preventDefault();
+      document.getElementById('btn-pause').click();
+      break;
+    case 'r':
+      if (!e.ctrlKey && !e.metaKey) { resetAll(); }
+      break;
+    case 't':
+      if (!e.ctrlKey && !e.metaKey) { document.getElementById('btn-topview').click(); }
+      break;
+  }
+});
+
+// ═══════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════
+updateLangUI();
+animate();
+</script>
+</body>
+</html>
