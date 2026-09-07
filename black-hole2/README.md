@@ -2,7 +2,7 @@
 
 A 3D WebGL visualization of a **Schwarzschild black hole** with a continuous accretion disk, photon ring, gravitational lensing arcs, bright knots, and infalling matter — inspired by NASA Goddard's black hole visualizations. Matter spirals inward on Keplerian orbits; the inner disk glows blue-white at millions of degrees, while differential rotation shears bright knots into alternating light and dark lanes.
 
-[**Live Demo / 在线演示**](https://Oasis-nymph.github.io/SI/black-hole/)
+[**Live Demo / 在线演示**](https://Oasis-nymph.github.io/SI/black-hole2/)
 
 ## How to use / 使用方法
 
@@ -48,7 +48,7 @@ A 3D WebGL visualization of a **Schwarzschild black hole** with a continuous acc
 
 1. Push this folder to a GitHub repo / 推送文件夹到 GitHub 仓库
 2. Settings → Pages → Source: `main` branch, root → Save
-3. Visit / 访问 `https://Oasis-nymph.github.io/SI/black-hole/`
+3. Visit / 访问 `https://Oasis-nymph.github.io/SI/black-hole2/`
 
 ---
 
