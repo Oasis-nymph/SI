@@ -4,7 +4,7 @@ A 3D WebGL visualization of a **Schwarzschild black hole** with a rotating accre
 
 **史瓦西黑洞**的三维 WebGL 可视化，包含旋转吸积盘、光子环和引力透镜效应。物质沿开普勒轨道螺旋下落——内区数百万度高温呈蓝白色，外区逐渐冷却为红橙色。盘背后方的光被引力弯曲，在事件视界上方形成幽灵般的透镜光弧。
 
-[**Live Demo / 在线演示**](https://<username>.github.io/<repo>/black-hole/)
+[**Live Demo / 在线演示**](https://Oasis-nymph.github.io/SI/black-hole/)
 
 ## How to use / 使用方法
 
@@ -53,7 +53,7 @@ A 3D WebGL visualization of a **Schwarzschild black hole** with a rotating accre
 
 1. Push this folder to a GitHub repo / 推送文件夹到 GitHub 仓库
 2. Settings → Pages → Source: `main` branch, root → Save / 设置 Pages 选 main 分支根目录保存
-3. Visit / 访问 `https://<username>.github.io/<repo>/black-hole/`
+3. Visit / 访问 `https://Oasis-nymph.github.io/SI/black-hole/`
 
 ---
 
