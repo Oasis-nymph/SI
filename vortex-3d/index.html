@@ -1,0 +1,1892 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Navier–Stokes 涡丝 3D 重建 · vortex stretching</title>
+<style>
+  :root{
+    --ink:#141821;
+    --ink-2:#4a5260;
+    --ink-3:#8a929e;
+    --line:#e4e7ec;
+    --card:rgba(255,255,255,.86);
+    --blue:#2a55c8;
+    --teal:#2bb6c4;
+    --amber:#d99334;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:#fff;color:var(--ink);overflow:hidden;
+    font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #gl{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+  #gl.dragging{cursor:grabbing}
+
+  /* ---------- 图注 + 引导线 ---------- */
+  #leaders{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+  #leaders line{stroke:#c8ced8;stroke-width:1}
+  #leaders circle{fill:#fff;stroke:#b9c0cb;stroke-width:1}
+  .lab{
+    position:fixed;pointer-events:none;letter-spacing:.2px;
+    font-size:clamp(13px,1.25vw,19px);line-height:1.15;font-weight:400;color:#1d222b;
+    transition:opacity .25s ease;
+  }
+  .lab .zh{display:block;font-size:.66em;color:var(--ink-3);margin-top:2px;letter-spacing:.6px}
+  #labels{position:fixed;inset:0;pointer-events:none}
+  .lab.hide{opacity:0}
+  /* 情形选择 */
+  .modes{display:flex;flex-direction:column;gap:4px;margin-bottom:2px}
+  .modes button{
+    display:flex;align-items:baseline;gap:6px;text-align:left;padding:6px 8px;border:1px solid var(--line);
+    background:#fff;border-radius:8px;cursor:pointer;transition:.15s;font-size:12px;color:var(--ink);
+  }
+  .modes button em{font-style:normal;font-size:9.5px;color:var(--ink-3);margin-left:auto}
+  .modes button:hover{border-color:#bdc6d6;background:#f7f9fc}
+  .modes button.on{border-color:#9fb3e0;background:#eef3ff;box-shadow:inset 0 0 0 1px rgba(42,85,200,.18)}
+  #mode-note{font-size:10.5px;color:var(--ink-3);line-height:1.5;margin:2px 0 4px}
+
+  /* ---------- 标题 ---------- */
+  #title{position:fixed;left:22px;top:18px;max-width:min(42vw,430px);pointer-events:none}
+  #title h1{margin:0;font-size:15px;font-weight:600;letter-spacing:.2px}
+  #title p{margin:4px 0 0;font-size:11.5px;color:var(--ink-3);line-height:1.45}
+  #title a{color:var(--blue);text-decoration:none;border-bottom:1px solid rgba(42,85,200,.3)}
+
+  /* ---------- 控制面板 ---------- */
+  #panel{
+    position:fixed;right:16px;top:50%;transform:translateY(-50%);width:272px;
+    background:var(--card);backdrop-filter:blur(14px) saturate(1.2);
+    border:1px solid var(--line);border-radius:14px;
+    box-shadow:0 10px 34px rgba(20,26,40,.10);
+    overflow:hidden;z-index:5;
+  }
+  #panel header{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;border-bottom:1px solid var(--line)}
+  #panel header .ttl{font-size:12px;font-weight:600;letter-spacing:.3px}
+  #panel header button{border:0;background:transparent;color:var(--ink-3);font-size:15px;cursor:pointer;padding:0 2px;line-height:1}
+  #panel .body{padding:12px 13px 13px;display:flex;flex-direction:column;gap:9px}
+  #panel.collapsed .body{display:none}
+  .row{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--ink-2)}
+  .row>span{flex:0 0 60px}
+  .row>em{flex:0 0 30px;text-align:right;font-style:normal;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;height:3px;border-radius:2px;background:#dfe3ea;flex:1;outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);
+    box-shadow:0 1px 3px rgba(0,0,0,.18);cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{width:11px;height:11px;border-radius:50%;background:#fff;border:1.5px solid var(--blue);cursor:pointer}
+  .checks{flex-wrap:wrap;gap:6px 12px}
+  .checks label{display:flex;align-items:center;gap:5px;cursor:pointer;color:var(--ink-2)}
+  .checks input{accent-color:#2a55c8;margin:0}
+  .btns{gap:6px;flex-wrap:wrap}
+  .btns button{
+    flex:1 1 auto;min-width:60px;padding:6px 8px;border:1px solid var(--line);background:#fff;border-radius:8px;
+    font-size:11.5px;color:var(--ink);cursor:pointer;transition:.15s;
+  }
+  .btns button:hover{border-color:#bdc6d6;background:#f7f9fc}
+  .btns button:active{transform:translateY(1px)}
+  .legend{margin-top:4px;border-top:1px solid var(--line);padding-top:9px}
+  .legend .bar{
+    height:8px;border-radius:4px;
+    background:linear-gradient(90deg,#12298a,#1a3ba8,#2957d1,#3380e0,#29b8cc,#5adfd1,#b8f2eb);
+  }
+  .legend .bar.amber{background:linear-gradient(90deg,#732e0f,#c78029,#e6a942,#f7d17a);margin-top:6px}
+  .legend .cap{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-3);margin-top:4px}
+  .legend .cap.amber{justify-content:flex-start;gap:6px}
+  .stats{font-size:10.5px;color:var(--ink-3);font-variant-numeric:tabular-nums;border-top:1px solid var(--line);padding-top:8px;margin-top:2px}
+  details{font-size:11px;color:var(--ink-2);border-top:1px solid var(--line);padding-top:8px}
+  details summary{cursor:pointer;color:var(--ink-3);list-style:none}
+  details summary::-webkit-details-marker{display:none}
+  details summary:before{content:"▸ ";color:var(--ink-3)}
+  details[open] summary:before{content:"▾ "}
+  details p{margin:7px 0 0;line-height:1.6}
+  details p+p{margin-top:5px}
+  code{background:#f2f4f8;padding:.5px 4px;border-radius:4px;font-size:10.5px}
+
+  #hint{
+    position:fixed;left:50%;bottom:14px;transform:translateX(-50%);
+    font-size:11px;color:var(--ink-3);pointer-events:none;white-space:nowrap;
+  }
+  #fatal{
+    position:fixed;inset:auto 16px 16px 16px;max-width:640px;margin:0 auto;display:none;
+    background:#fff5f5;border:1px solid #f3c9c9;color:#8a2b2b;border-radius:10px;padding:12px 14px;
+    font-size:12px;white-space:pre-wrap;z-index:20;
+  }
+  @media (max-width:860px){
+    #panel{width:236px;right:10px;top:auto;bottom:10px;transform:none;max-height:68vh;overflow:auto}
+    #panel.collapsed .body{display:none}
+    #title{max-width:56vw}
+    #hint{display:none}
+  }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+
+<svg id="leaders" aria-hidden="true"></svg>
+<div id="labels"></div>
+
+<div id="title">
+  <h1>涡丝 3D 重建 · vortex stretching</h1>
+  <p>依据 OpenAI《Navier–Stokes 问题》配图重建的可交互涡管模型<sup>*</sup>，含五种物理情形（拉伸涡管 / 扭曲失稳 / 涡环 / 涡重联 / 湍流纠结）。原文：<a href="https://openai.com/index/navier-stokes-solution/" target="_blank" rel="noreferrer">openai.com/index/navier-stokes-solution</a></p>
+</div>
+
+<aside id="panel">
+  <header>
+    <div class="ttl">模型参数</div>
+    <button id="collapse" title="折叠 / 展开">–</button>
+  </header>
+  <div class="body">
+    <div class="modes" id="modes"></div>
+    <div id="mode-note"></div>
+    <label class="row"><span>细丝密度</span><input id="s-density" type="range" min="0.4" max="1.8" step="0.1" value="1"><em id="v-density">1.0</em></label>
+    <label class="row"><span>螺旋圈数</span><input id="s-winding" type="range" min="0.55" max="1.7" step="0.05" value="1"><em id="v-winding">1.00</em></label>
+    <label class="row"><span>截面形态</span><input id="s-sec" type="range" min="0" max="1" step="0.05" value="1"><em id="v-sec">扁带</em></label>
+    <label class="row" id="row-morph" style="display:none"><span id="lbl-morph">演化进程</span><input id="s-morph" type="range" min="0" max="1" step="0.01" value="0"><em id="v-morph">0.00</em></label>
+    <label class="row"><span>向内收缩</span><input id="s-inward" type="range" min="0" max="2.5" step="0.05" value="1"><em id="v-inward">1.00</em></label>
+    <label class="row"><span>轴向拉伸</span><input id="s-stretch" type="range" min="0" max="2.5" step="0.05" value="1"><em id="v-stretch">1.00</em></label>
+    <label class="row"><span>扭曲速度</span><input id="s-swirl" type="range" min="0" max="2.5" step="0.05" value="1"><em id="v-swirl">1.00</em></label>
+    <label class="row"><span>播放速度</span><input id="s-speed" type="range" min="0" max="2" step="0.05" value="1"><em id="v-speed">1.00</em></label>
+    <div class="row checks">
+      <label><input type="checkbox" id="c-auto" checked> 自转</label>
+      <label><input type="checkbox" id="c-flow" checked> 流动高光</label>
+      <label><input type="checkbox" id="c-labels" checked> 标注</label>
+      <label><input type="checkbox" id="c-axis" checked> 轴线</label>
+      <label id="chk-morphauto" style="display:none"><input type="checkbox" id="c-morphauto"> 自动演化</label>
+      <label><input type="checkbox" id="c-ortho"> 正交投影</label>
+    </div>
+    <div class="row btns">
+      <button id="b-pause">暂停</button>
+      <button id="b-reset">原图视角</button>
+      <button id="b-reseed">重新生成</button>
+      <button id="b-save">存图</button>
+    </div>
+    <div class="legend">
+      <div class="bar"></div>
+      <div class="cap"><span>涡心 · 内圈</span><span>外侧扫掠</span></div>
+      <div class="bar amber"></div>
+      <div class="cap amber"><span>近轴细丝（轴向拉伸段）</span></div>
+    </div>
+    <div class="stats" id="stats">初始化…</div>
+    <details>
+      <summary>这幅图在讲什么？</summary>
+      <p>涡管被沿自身轴线拉长（<b>axial stretching</b>）时，角动量守恒使流体向轴心收缩、转速加快（<b>inward spiral</b>），涡量被放大——这正是三维 Navier–Stokes 方程中涡量拉伸项 <code>(ω·∇)u</code> 的几何图像，也是湍流能量级串与可能的奇点问题的核心机制。</p>
+      <p>模型把原图的<strong>细丝（vortex lines）</strong>分层重建：蓝色为紧密盘绕的涡心线圈，青色为向外甩出的扫掠丝，琥珀色为贴近轴线、沿轴方向被拉长的细丝。颜色对应局部半径与拉伸率，与配图配色一致。</p>
+      <p><sup>*</sup> 这是<strong>示意性重建</strong>：几何由参数化螺旋生成，用于呈现涡量拉伸的几何直观，与论文计算数据无关。</p>
+      <p>五种情形对应同一条链条上的不同环节：<b>拉伸</b>（涡量被放大）→ <b>失稳</b>（直涡管弯折）→
+      <b>重联</b>（拓扑改变、交换伙伴）→ <b>纠结</b>（湍流中的涡管网络）。涡环则是涡量沿大圆闭合的另一种基本形态。</p>
+    </details>
+  </div>
+</aside>
+
+<div id="hint">拖拽旋转 · 滚轮缩放 · 右键 / Shift 拖拽平移 · 双击复位</div>
+<div id="fatal"></div>
+
+<script>
+/* =====================================================================
+   VORTEX-CORE : 与环境无关的数学 / 几何 / 着色核心
+   （浏览器与 Node 校验脚本共用，勿在此段内引用 DOM）
+   ===================================================================== */
+/* ==== VORTEX-CORE-BEGIN ==== */
+(function (root) {
+  'use strict';
+
+  var TAU = Math.PI * 2;
+
+  /* ------------------------- 基础数学 ------------------------- */
+  function clamp(x, a, b) { return x < a ? a : (x > b ? b : x); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+  function smoothstep(e0, e1, x) { var t = clamp((x - e0) / (e1 - e0), 0, 1); return t * t * (3 - 2 * t); }
+  function fract(x) { return x - Math.floor(x); }
+
+  function mulberry32(a) {
+    a = a >>> 0;
+    return function () {
+      a = (a + 0x6D2B79F5) | 0;
+      var t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  /* ------------------------- 颜色色带 ------------------------- */
+  // 深蓝涡心 -> 蓝 -> 青绿 -> 淡青（外侧扫掠）
+  var RAMP_RADIUS = [
+    [0.00, [0.105, 0.180, 0.500]],
+    [0.18, [0.130, 0.250, 0.630]],
+    [0.38, [0.145, 0.315, 0.740]],
+    [0.56, [0.160, 0.430, 0.780]],
+    [0.72, [0.130, 0.580, 0.700]],
+    [0.88, [0.220, 0.720, 0.780]],
+    [1.00, [0.550, 0.880, 0.880]]
+  ];
+  // 琥珀：沿轴被拉长的近轴细丝
+  var RAMP_AMBER = [
+    [0.00, [0.450, 0.245, 0.060]],
+    [0.45, [0.780, 0.500, 0.160]],
+    [0.75, [0.900, 0.660, 0.260]],
+    [1.00, [0.970, 0.820, 0.480]]
+  ];
+
+  function sampleRamp(ramp, t) {
+    t = clamp(t, 0, 1);
+    for (var i = 1; i < ramp.length; i++) {
+      if (t <= ramp[i][0]) {
+        var a = ramp[i - 1], b = ramp[i];
+        var k = (t - a[0]) / Math.max(1e-6, b[0] - a[0]);
+        return [lerp(a[1][0], b[1][0], k), lerp(a[1][1], b[1][1], k), lerp(a[1][2], b[1][2], k)];
+      }
+    }
+    var last = ramp[ramp.length - 1][1];
+    return [last[0], last[1], last[2]];
+  }
+
+  /* ------------------------- 小向量工具 ----------------------------------------- */
+  function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function norm(a) { var l = Math.sqrt(dot(a, a)) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+
+  /* ------------------------- mat4 (列主序，同 WebGL) ------------------------- */
+  var mat4 = {
+    create: function () { return new Float32Array(16); },
+    identity: function (o) { o.set([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]); return o; },
+    perspective: function (o, fovy, aspect, near, far) {
+      var f = 1 / Math.tan(fovy / 2), nf = 1 / (near - far);
+      o[0] = f / aspect; o[1] = 0; o[2] = 0; o[3] = 0;
+      o[4] = 0; o[5] = f; o[6] = 0; o[7] = 0;
+      o[8] = 0; o[9] = 0; o[10] = (far + near) * nf; o[11] = -1;
+      o[12] = 0; o[13] = 0; o[14] = 2 * far * near * nf; o[15] = 0;
+      return o;
+    },
+    lookAt: function (o, eye, center, up) {
+      var z = norm(sub(eye, center));
+      var x = norm(cross(up, z));
+      var y = cross(z, x);
+      o[0] = x[0]; o[1] = y[0]; o[2] = z[0]; o[3] = 0;
+      o[4] = x[1]; o[5] = y[1]; o[6] = z[1]; o[7] = 0;
+      o[8] = x[2]; o[9] = y[2]; o[10] = z[2]; o[11] = 0;
+      o[12] = -dot(x, eye); o[13] = -dot(y, eye); o[14] = -dot(z, eye); o[15] = 1;
+      return o;
+    },
+    multiply: function (o, a, b) {
+      for (var c = 0; c < 4; c++) {
+        var b0 = b[c * 4], b1 = b[c * 4 + 1], b2 = b[c * 4 + 2], b3 = b[c * 4 + 3];
+        o[c * 4] = a[0] * b0 + a[4] * b1 + a[8] * b2 + a[12] * b3;
+        o[c * 4 + 1] = a[1] * b0 + a[5] * b1 + a[9] * b2 + a[13] * b3;
+        o[c * 4 + 2] = a[2] * b0 + a[6] * b1 + a[10] * b2 + a[14] * b3;
+        o[c * 4 + 3] = a[3] * b0 + a[7] * b1 + a[11] * b2 + a[15] * b3;
+      }
+      return o;
+    },
+    ortho: function (o, l, r, b, t, n, f) {
+      var lr = 1 / (l - r), bt = 1 / (b - t), nf = 1 / (n - f);
+      o[0] = -2 * lr; o[1] = 0; o[2] = 0; o[3] = 0;
+      o[4] = 0; o[5] = -2 * bt; o[6] = 0; o[7] = 0;
+      o[8] = 0; o[9] = 0; o[10] = 2 * nf; o[11] = 0;
+      o[12] = (l + r) * lr; o[13] = (t + b) * bt; o[14] = (f + n) * nf; o[15] = 1;
+      return o;
+    }
+  };
+
+  // 世界坐标 -> 屏幕像素（返回 null 表示在相机背后）
+  function projectPoint(vp, W, H, p) {
+    var x = p[0], y = p[1], z = p[2];
+    var cx = vp[0] * x + vp[4] * y + vp[8] * z + vp[12];
+    var cy = vp[1] * x + vp[5] * y + vp[9] * z + vp[13];
+    var cw = vp[3] * x + vp[7] * y + vp[11] * z + vp[15];
+    if (cw <= 1e-5) return null;
+    return { x: (cx / cw * 0.5 + 0.5) * W, y: (1 - (cy / cw * 0.5 + 0.5)) * H, w: cw };
+  }
+
+  /* ------------------------- 涡管外形 ------------------------- */
+  var DEFAULTS = {
+    seed: 20260214,
+    mode: 'tube',     // 情形：tube / kink / ring / reconnect / tangle
+    density: 1.0,     // 细丝数量倍率
+    winding: 1.0,     // 螺旋圈数倍率
+    thick: 1.0,       // 细丝粗细倍率
+    coils: 220,       // 核心蓝色线圈
+    spray: 100,       // 向外扫掠的青色丝
+    threads: 62,      // 近轴被轴向拉伸的琥珀丝
+    coreR: 0.345,     // 核心最大半径
+    coreYc: -0.06,    // 核心中心高度
+    coreHh: 0.615,    // 核心半高
+    rNorm: 0.80,      // 颜色归一化半径（≈外层扫掠最大半径）
+    radial: 5,        // 管截面边数（各族可覆盖）
+    sec: 1.0,         // 截面形态：0=圆丝，1=扁带（原图的环带观感）
+    kinkAmp: 0.62, kinkLen: 1.30, kinkTurns: 0.28,   // 扭曲失稳
+    ringR: 0.62,                                     // 涡环主半径
+    reconD: 0.19, reconLen: 1.55, reconW: 0.26, reconZ: 0.06,  // 涡重联
+    tanScale: 0.22                                   // 湍流纠结的控制步长
+  };
+
+  // 各族的截面形态：涡心线圈最扁（竖直方向宽、径向薄，像涡片环带）
+  function secStyle(cfg, kind) {
+    var s = clamp(cfg.sec, 0, 1);
+    if (kind === 'coil') { return { a: 1 - 0.24 * s, b: 1 + 0.42 * s }; }
+    if (kind === 'spray') { return { a: 1 - 0.18 * s, b: 1 + 0.38 * s }; }
+    return { a: 1 - 0.06 * s, b: 1 + 0.10 * s };
+  }
+
+  // 给定高度处的“涡管束”最大半径（近似柱状，两端快速收细，略不对称）
+  function coreRadius(y, cfg) {
+    var u = (y - cfg.coreYc) / cfg.coreHh;
+    if (u <= -1 || u >= 1) return 0;
+    var t = 1 - Math.pow(Math.abs(u), 2.6);
+    return cfg.coreR * Math.sqrt(Math.max(0, t)) * (1 + 0.10 * Math.sin((u + 0.25) * 2.1));
+  }
+
+  /* ------------------------- 几何装配 ------------------------- */
+  // acc 除了顶点数据，还记录每个顶点所属的“局部涡轴”（点 + 方向），
+  // 顶点着色器据此做绕轴扭转；mpos/mnrm 是“演化目标态”的顶点，用于形变滑块。
+  function newAcc() {
+    return { pos: [], nrm: [], col: [], seed: [], par: [], anc: [], ant: [], mpos: [], mnrm: [], idx: [], count: 0 };
+  }
+
+  function finishAcc(a) {
+    var o = {
+      position: new Float32Array(a.pos),
+      normal: new Float32Array(a.nrm),
+      color: new Float32Array(a.col),
+      seed: new Float32Array(a.seed),
+      param: new Float32Array(a.par),
+      animC: new Float32Array(a.anc),
+      animT: new Float32Array(a.ant),
+      morphPosition: a.mpos.length === a.pos.length ? new Float32Array(a.mpos) : null,
+      morphNormal: a.mnrm.length === a.nrm.length ? new Float32Array(a.mnrm) : null,
+      index: new Uint32Array(a.idx),
+      count: a.count
+    };
+    return o;
+  }
+
+  // 把一条折线扫成扁带/圆管。
+  // pts:[[x,y,z]..]，radFn(t,i)->半径，colFn(t,i,cylR)->[r,g,b]
+  // style: {a:径向截面倍率, b:竖直截面倍率}（a<b 时是一条竖直方向更宽的扁带）
+  // frames[i] = {c:[x,y,z], t:[x,y,z]}：该处的局部涡轴（点 + 方向）。
+  //   - 截面两根轴取 A=“到局部涡轴的径向在法平面上的投影”、B=T×A，环带因此贴着涡管柱面；
+  //   - 配色用的 cylR 也改成“到局部涡轴的距离”，于是同一套配色对任何形态都成立。
+  function addTube(acc, pts, radFn, colFn, seed, radial, params, style, frames) {
+    var n = pts.length;
+    if (n < 3) return;
+    radial = radial || 5;
+    var fA = style && style.a !== undefined ? style.a : 1;
+    var fB = style && style.b !== undefined ? style.b : 1;
+    var T = new Array(n), As = new Array(n), Bs = new Array(n), ok = new Array(n);
+    var i, k;
+    for (i = 0; i < n; i++) {
+      var a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+      T[i] = norm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
+    }
+    for (i = 0; i < n; i++) {
+      var rx, ry, rz;
+      if (frames && frames[i]) {
+        // “径向” = 该点到局部涡轴的垂直分量方向（对任何形态都成立）
+        var fc = frames[i].c, ft = frames[i].t;
+        var tl = Math.sqrt(ft[0] * ft[0] + ft[1] * ft[1] + ft[2] * ft[2]) || 1;
+        var ux = ft[0] / tl, uy = ft[1] / tl, uz = ft[2] / tl;
+        var dx0 = pts[i][0] - fc[0], dy0 = pts[i][1] - fc[1], dz0 = pts[i][2] - fc[2];
+        var al = dx0 * ux + dy0 * uy + dz0 * uz;
+        rx = dx0 - ux * al; ry = dy0 - uy * al; rz = dz0 - uz * al;
+        var rl0 = Math.sqrt(rx * rx + ry * ry + rz * rz);
+        if (rl0 < 1e-5) { rx = 0; ry = 1; rz = 0; } else { rx /= rl0; ry /= rl0; rz /= rl0; }
+      } else {
+        var rl = Math.sqrt(pts[i][0] * pts[i][0] + pts[i][2] * pts[i][2]);
+        rx = rl > 1e-4 ? pts[i][0] / rl : 1; ry = 0; rz = rl > 1e-4 ? pts[i][2] / rl : 0;
+      }
+      var d = rx * T[i][0] + ry * T[i][1] + rz * T[i][2];
+      var vx = rx - T[i][0] * d, vy = ry - T[i][1] * d, vz = rz - T[i][2] * d;
+      var vl = Math.sqrt(vx * vx + vy * vy + vz * vz);
+      if (vl > 0.18) { As[i] = [vx / vl, vy / vl, vz / vl]; ok[i] = true; }
+      else { As[i] = null; ok[i] = false; }
+    }
+    // 退化点（切向几乎就是径向，例如在轴上的端点）借用邻近点的截面轴
+    for (i = 0; i < n; i++) {
+      if (ok[i]) { continue; }
+      var src = null;
+      for (k = i - 1; k >= 0; k--) { if (ok[k]) { src = As[k]; break; } }
+      if (!src) { for (k = i + 1; k < n; k++) { if (ok[k]) { src = As[k]; break; } } }
+      if (!src) { src = [1, 0, 0]; }
+      var dd = src[0] * T[i][0] + src[1] * T[i][1] + src[2] * T[i][2];
+      var q = [src[0] - T[i][0] * dd, src[1] - T[i][1] * dd, src[2] - T[i][2] * dd];
+      var ql = Math.sqrt(q[0] * q[0] + q[1] * q[1] + q[2] * q[2]);
+      As[i] = ql > 1e-6 ? [q[0] / ql, q[1] / ql, q[2] / ql] : [0, 1, 0];
+    }
+    for (i = 0; i < n; i++) { Bs[i] = cross(T[i], As[i]); }
+
+    var base = acc.count;
+    for (i = 0; i < n; i++) {
+      var t = n > 1 ? i / (n - 1) : 0;
+      var r = radFn(t, i);
+      var rA = Math.max(1e-5, r * fA), rB = Math.max(1e-5, r * fB);
+      // 局部涡轴：给顶点着色器做绕轴扭转，同时定义“到涡轴的距离”
+      var ccx = 0, ccy = pts[i][1], ccz = 0, ttx = 0, tty = 1, ttz = 0;
+      if (frames && frames[i]) {
+        ccx = frames[i].c[0]; ccy = frames[i].c[1]; ccz = frames[i].c[2];
+        var ft2 = frames[i].t;
+        var tl2 = Math.sqrt(ft2[0] * ft2[0] + ft2[1] * ft2[1] + ft2[2] * ft2[2]) || 1;
+        ttx = ft2[0] / tl2; tty = ft2[1] / tl2; ttz = ft2[2] / tl2;
+      }
+      var ddx = pts[i][0] - ccx, ddy = pts[i][1] - ccy, ddz = pts[i][2] - ccz;
+      var aal = ddx * ttx + ddy * tty + ddz * ttz;
+      var ppx = ddx - ttx * aal, ppy = ddy - tty * aal, ppz = ddz - ttz * aal;
+      var cylR = Math.sqrt(ppx * ppx + ppy * ppy + ppz * ppz);
+      var c = colFn(t, i, cylR);
+      var prm = params ? params[i] : t;
+      for (k = 0; k < radial; k++) {
+        var ang = (k / radial) * TAU;
+        var ca = Math.cos(ang), sa = Math.sin(ang);
+        var ox = As[i][0] * ca * rA + Bs[i][0] * sa * rB;
+        var oy = As[i][1] * ca * rA + Bs[i][1] * sa * rB;
+        var oz = As[i][2] * ca * rA + Bs[i][2] * sa * rB;
+        // 椭圆截面的法线 ∝ A·cos/rA + B·sin/rB
+        var nx = As[i][0] * ca / rA + Bs[i][0] * sa / rB;
+        var ny = As[i][1] * ca / rA + Bs[i][1] * sa / rB;
+        var nz = As[i][2] * ca / rA + Bs[i][2] * sa / rB;
+        var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+        acc.pos.push(pts[i][0] + ox, pts[i][1] + oy, pts[i][2] + oz);
+        acc.nrm.push(nx / nl, ny / nl, nz / nl);
+        acc.col.push(c[0], c[1], c[2]);
+        acc.seed.push(seed);
+        acc.par.push(prm);
+        acc.anc.push(ccx, ccy, ccz);
+        acc.ant.push(ttx, tty, ttz);
+        acc.count++;
+      }
+    }
+    for (i = 0; i < n - 1; i++) {
+      for (k = 0; k < radial; k++) {
+        var k2 = (k + 1) % radial;
+        var v0 = base + i * radial + k;
+        var v1 = base + i * radial + k2;
+        var v2 = base + (i + 1) * radial + k2;
+        var v3 = base + (i + 1) * radial + k;
+        acc.idx.push(v0, v1, v2, v0, v2, v3);
+      }
+    }
+  }
+
+  // 倾斜圆环上的一点（线圈整体略微倾斜 + 椭圆化 + 偏心，接近原图的斜置扁环观感）
+  function ringPoint(r, y, yc, th, ax, az, ex, ez) {
+    ex = ex === undefined ? 1 : ex;
+    ez = ez === undefined ? 1 : ez;
+    var dx = r * Math.cos(th) * ex, dz = r * Math.sin(th) * ez, dy = y - yc;
+    var cx = Math.cos(ax), sx = Math.sin(ax);
+    var dy2 = dy * cx - dz * sx, dz2 = dy * sx + dz * cx;
+    var cz = Math.cos(az), sz = Math.sin(az);
+    var dx2 = dx * cz - dy2 * sz, dy3 = dx * sz + dy2 * cz;
+    return [dx2, yc + dy3, dz2];
+  }
+
+  // 局部拉伸率：|dy|/ds，用于判定“沿轴被拉长”
+  function stretchProfile(pts) {
+    var n = pts.length, out = new Array(n);
+    for (var i = 0; i < n; i++) {
+      var a = pts[Math.max(0, i - 1)], b = pts[Math.min(n - 1, i + 1)];
+      var dx = b[0] - a[0], dy = b[1] - a[1], dz = b[2] - a[2];
+      var ds = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-9;
+      out[i] = Math.abs(dy) / ds;
+    }
+    // 轻度平滑
+    var sm = new Array(n);
+    for (var j = 0; j < n; j++) {
+      var s = 0, c = 0;
+      for (var k = -2; k <= 2; k++) { var idx = j + k; if (idx >= 0 && idx < n) { s += out[idx]; c++; } }
+      sm[j] = s / c;
+    }
+    return sm;
+  }
+
+  /* ------------------------- 细丝生成工具 ------------------------- */
+  // 低差异序列：让细丝在（高度 × 半径 × 相位）上均匀铺开，避免随机聚簇
+  function radicalInv(i, base) {
+    var f = 1 / base, r = 0, n = i;
+    while (n > 0) { r += f * (n % base); n = Math.floor(n / base); f /= base; }
+    return r;
+  }
+
+  // 采样一条参数曲线 -> 扫成扁带。
+  // pathFn(t, prm) 返回 {p:[x,y,z], c:[x,y,z], t:[x,y,z], w?:number}
+  //   c/t = 该处的局部涡轴；w = 给配色的自定义标量（如弯管外侧程度）
+  // opts: {step, maxSeg, minSeg, radial, style, paramFn, morphPrm}
+  //   morphPrm = 同一族路径的“目标态参数”，再扫一遍得到顶点一一对应的形变态
+  function emit(acc, cfg, pathFn, prm, radFn, colFn, seed, opts) {
+    opts = opts || {};
+    var step = opts.step || 0.024;
+    var maxSeg = opts.maxSeg || 200, minSeg = opts.minSeg || 36;
+    var prev = pathFn(0, prm).p, L = 0, q, i;
+    for (i = 1; i <= 48; i++) {
+      q = pathFn(i / 48, prm).p;
+      var dx = q[0] - prev[0], dy = q[1] - prev[1], dz = q[2] - prev[2];
+      L += Math.sqrt(dx * dx + dy * dy + dz * dz);
+      prev = q;
+    }
+    var N = Math.max(minSeg, Math.min(maxSeg, Math.round(L / step)));
+    var pts = new Array(N + 1), frames = new Array(N + 1), ws = new Array(N + 1);
+    var params = opts.paramFn ? new Array(N + 1) : null;
+    for (i = 0; i <= N; i++) {
+      var t = i / N;
+      var o = pathFn(t, prm);
+      pts[i] = o.p;
+      frames[i] = { c: o.c, t: o.t };
+      ws[i] = o.w === undefined ? 0 : o.w;
+      if (params) { params[i] = opts.paramFn(t); }
+    }
+    var st = stretchProfile(pts);
+    var radialN = opts.radial || cfg.radial;
+
+    if (!opts.morphPrm) {
+      addTube(acc, pts,
+        function (t, ii) { return radFn(t, ii, prm); },
+        function (t, ii, r) { return colFn(t, ii, r, st, prm, ws[ii]); },
+        seed, radialN, params, opts.style, frames);
+      return;
+    }
+
+    // 有目标态：两条管分别扫进 acc 与 tmp，再把 tmp 的顶点接在 mpos/mnrm 上
+    var start = acc.count;
+    addTube(acc, pts,
+      function (t, ii) { return radFn(t, ii, prm); },
+      function (t, ii, r) { return colFn(t, ii, r, st, prm, ws[ii]); },
+      seed, radialN, params, opts.style, frames);
+
+    var mp = opts.morphPrm;
+    var mpts = new Array(N + 1), mfr = new Array(N + 1), mws = new Array(N + 1);
+    for (i = 0; i <= N; i++) {
+      var t2 = i / N;
+      var o2 = pathFn(t2, mp);
+      mpts[i] = o2.p;
+      mfr[i] = { c: o2.c, t: o2.t };
+      mws[i] = o2.w === undefined ? 0 : o2.w;
+    }
+    var mst = stretchProfile(mpts);
+    var tmp = newAcc();
+    addTube(tmp, mpts,
+      function (t, ii) { return radFn(t, ii, mp); },
+      function (t, ii, r) { return colFn(t, ii, r, mst, mp, mws[ii]); },
+      seed, radialN, null, opts.style, mfr);
+
+    var added = acc.count - start;
+    if (tmp.count === added) {
+      for (i = 0; i < added * 3; i++) { acc.mpos.push(tmp.pos[i]); acc.mnrm.push(tmp.nrm[i]); }
+    } else {
+      for (i = 0; i < added * 3; i++) { acc.mpos.push(acc.pos[start * 3 + i]); acc.mnrm.push(acc.nrm[start * 3 + i]); }
+    }
+  }
+
+  // A. 核心线圈路径：近似水平的倾斜闭环，随高度贴合纺锤形包络
+  function coilPath(t, p) {
+    var th = p.phase + TAU * p.turns * t;
+    var y = p.yc + p.slope * (t - 0.5) + 0.016 * Math.sin(TAU * 1.3 * t + p.ph2);
+    var env = Math.max(coreRadius(y, p.cfg), 1e-4) / Math.max(p.rMax, 1e-4);
+    var rr = p.ri * (1 + p.wob * Math.sin(TAU * p.wobF * t + p.ph3)) * Math.pow(env, 0.35);
+    var pt = ringPoint(rr, y, p.yc, th, p.tiltX, p.tiltZ, p.ex, p.ez);
+    pt[0] += p.ox; pt[2] += p.oz;                      // 整堆线圈略微偏心，避免过于机械
+    return pt;
+  }
+
+  // B. 外扫掠路径：先贴着涡管外壁盘绕，再一边下沉一边向外甩出（指数式剥离）
+  function sprayPath(t, p) {
+    var rr = p.startR + (p.endR - p.startR) * Math.pow(t, p.radPow);
+    var th = p.phase + TAU * p.turns * t;
+    var y = p.y0 + p.dy * Math.pow(t, 1.45) + p.sag * Math.sin(TAU * p.sagF * t + p.ph2);
+    return [rr * Math.cos(th), y, rr * Math.sin(th) * p.flatten];
+  }
+
+  // C. 近轴路径：沿轴方向被拉长的一段细丝（t=0 在外端，t=1 没入涡心）
+  function threadPath(t, p) {
+    var tt = Math.pow(t, 0.85);
+    var yy = lerp(p.yTip, p.yIn, tt);
+    var rr = p.r0 * (0.45 + 2.3 * Math.pow(t, 1.12)) * (1 + 0.22 * Math.sin(TAU * 1.7 * t + p.ph2));
+    var th = p.phase + TAU * p.turns * t;
+    var bow = p.bowA * Math.sin(Math.PI * t) * p.bowSign;
+    return [rr * Math.cos(th) + bow * Math.cos(p.bowPh), yy, rr * Math.sin(th) + bow * Math.sin(p.bowPh)];
+  }
+
+  function pickColor(rN, stretch, amberBias, tipness, tint) {
+    var base = sampleRamp(RAMP_RADIUS, rN);
+    var aw = clamp(amberBias * tipness * (0.5 + 0.5 * smoothstep(0.22, 0.75, stretch)) * (1 - smoothstep(0.07, 0.30, rN)), 0, 1);
+    if (aw > 0.001) {
+      var am = sampleRamp(RAMP_AMBER, smoothstep(0.25, 0.95, stretch));
+      base = [lerp(base[0], am[0], aw), lerp(base[1], am[1], aw), lerp(base[2], am[2], aw)];
+    }
+    return [clamp(base[0] * tint, 0, 1), clamp(base[1] * tint, 0, 1), clamp(base[2] * tint, 0, 1)];
+  }
+
+  // 把“绕世界 Y 轴缠绕”的点函数包成带局部涡轴的形式（拉伸涡管情形）
+  function onAxis(fn) {
+    return function (t, p) {
+      var q = fn(t, p);
+      return { p: q, c: [0, q[1], 0], t: [0, 1, 0], w: 0 };
+    };
+  }
+  var coilPathA = onAxis(coilPath), sprayPathA = onAxis(sprayPath), threadPathA = onAxis(threadPath);
+
+  /* --------------- 通用几何工具（各情形共用） --------------- */
+  function mixCol(a, b, k) { return [lerp(a[0], b[0], k), lerp(a[1], b[1], k), lerp(a[2], b[2], k)]; }
+
+  // 中心线的数值切向
+  function clTangent(clFn, s, prm) {
+    var h = 1e-3;
+    var a = clFn(Math.max(0, s - h), prm), b = clFn(Math.min(1, s + h), prm);
+    return norm([b[0] - a[0], b[1] - a[1], b[2] - a[2]]);
+  }
+  // 由切向 + 参考方向构造稳定坐标架（参考方向退化时自动换轴）
+  function frameAt(tan, ref) {
+    var d = tan[0] * ref[0] + tan[1] * ref[1] + tan[2] * ref[2];
+    var n1 = [ref[0] - tan[0] * d, ref[1] - tan[1] * d, ref[2] - tan[2] * d];
+    var l = Math.sqrt(n1[0] * n1[0] + n1[1] * n1[1] + n1[2] * n1[2]);
+    if (l < 0.25) {
+      ref = Math.abs(tan[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
+      d = tan[0] * ref[0] + tan[1] * ref[1] + tan[2] * ref[2];
+      n1 = [ref[0] - tan[0] * d, ref[1] - tan[1] * d, ref[2] - tan[2] * d];
+      l = Math.sqrt(n1[0] * n1[0] + n1[1] * n1[1] + n1[2] * n1[2]) || 1;
+    }
+    n1 = [n1[0] / l, n1[1] / l, n1[2] / l];
+    return [n1, cross(tan, n1)];
+  }
+  function catmull(a, b, c, d, f) {
+    var f2 = f * f, f3 = f2 * f, o = [0, 0, 0];
+    for (var i = 0; i < 3; i++) {
+      o[i] = 0.5 * (2 * b[i] + (-a[i] + c[i]) * f + (2 * a[i] - 5 * b[i] + 4 * c[i] - d[i]) * f2 + (-a[i] + 3 * b[i] - 3 * c[i] + d[i]) * f3);
+    }
+    return o;
+  }
+
+  /* ================= 情形 2：扭曲失稳（m=1 kink） ================= */
+  // 中心线：一条沿 y 的涡管，弯成振幅沿程增长的螺旋；amp=0 时退化为直管（形变起点）
+  function kinkCL(s, p) {
+    var g = clamp((s - 0.10) / 0.90, 0, 1);
+    var amp = p.amp * Math.pow(g, 1.5);
+    var ph = TAU * p.kTurns * s + p.kPhase;
+    return [amp * Math.cos(ph), p.len * (s - 0.5), amp * Math.sin(ph)];
+  }
+  function kinkPath(t, p) {
+    var c = kinkCL(t, p);
+    var tan = clTangent(kinkCL, t, p);
+    var fr = frameAt(tan, [1, 0, 0]);
+    // 管心沿程变细（被拉伸），两端再收一下
+    var rho = p.rho * (1.15 - 0.55 * t) * (0.45 + 0.75 * Math.sin(Math.PI * clamp(t, 0.02, 0.98)));
+    var th = p.phase + TAU * p.turns * t;
+    var ca = Math.cos(th), sa = Math.sin(th);
+    var q = [
+      c[0] + rho * (fr[0][0] * ca + fr[1][0] * sa),
+      c[1] + rho * (fr[0][1] * ca + fr[1][1] * sa),
+      c[2] + rho * (fr[0][2] * ca + fr[1][2] * sa)
+    ];
+    // 弯管外侧被拉伸：用曲率方向与“径向”的夹角判断（外侧 ≈ 1）
+    var h = 6e-3;
+    var k1 = kinkCL(Math.max(0, t - h), p), k2 = kinkCL(Math.min(1, t + h), p);
+    var kd = norm([k1[0] - 2 * c[0] + k2[0], k1[1] - 2 * c[1] + k2[1], k1[2] - 2 * c[2] + k2[2]]);
+    var ux = (q[0] - c[0]) / Math.max(rho, 1e-5), uy = (q[1] - c[1]) / Math.max(rho, 1e-5), uz = (q[2] - c[2]) / Math.max(rho, 1e-5);
+    var outer = -(kd[0] * ux + kd[1] * uy + kd[2] * uz);
+    return { p: q, c: c, t: tan, w: 0.5 + 0.5 * outer };
+  }
+  function buildKink(cfg, rnd, acc) {
+    var n = Math.round(120 * cfg.density);
+    var amp = cfg.kinkAmp, len = cfg.kinkLen, kTurns = cfg.kinkTurns, kPhase = rnd() * TAU;
+    for (var i = 0; i < n; i++) {
+      var q = i + 1;
+      var prm = {
+        amp: amp, len: len, kTurns: kTurns, kPhase: kPhase,
+        rho: 0.008 + 0.075 * Math.pow(radicalInv(q, 2), 0.9),
+        turns: (1.4 + 2.4 * rnd()) * cfg.winding,
+        phase: rnd() * TAU,
+        baseR: (0.0032 + 0.0028 * rnd()) * cfg.thick,
+        tint: 0.82 + 0.26 * rnd()
+      };
+      var prm0 = { amp: 0, len: len, kTurns: kTurns, kPhase: kPhase, rho: prm.rho, turns: prm.turns, phase: prm.phase, baseR: prm.baseR, tint: prm.tint };
+      emit(acc, cfg, kinkPath, prm,
+        function (t, ii, pp) { return pp.baseR * (0.45 + 0.75 * Math.sin(Math.PI * clamp(t, 0.02, 0.98))); },
+        function (t, ii, r, st, pp, w) {
+          var rN = clamp(r / 0.085, 0, 1);
+          var base = sampleRamp(RAMP_RADIUS, rN);
+          var amber = sampleRamp(RAMP_AMBER, clamp((w - 0.5) * 2.2, 0, 1));
+          return mixCol(base, amber, 0.70 * smoothstep(0.58, 0.98, w) * smoothstep(0.30, 0.85, rN) * pp.tint);
+        },
+        rnd(), { step: 0.026, maxSeg: 200, radial: 6, style: secStyle(cfg, 'coil'), morphPrm: prm0 });
+    }
+    return { total: n };
+  }
+
+  /* ================= 情形 3：涡环（闭合涡线绕成的环） ================= */
+  function ringCL(s, p) {
+    var a = TAU * s;
+    return [p.R * Math.cos(a), p.y0, p.R * Math.sin(a)];
+  }
+  function ringPath(t, p) {
+    var c = ringCL(t, p);
+    var tan = clTangent(ringCL, t, p);
+    var fr = frameAt(tan, [0, 1, 0]);
+    var th = p.phase + TAU * p.turns * t;
+    var ca = Math.cos(th), sa = Math.sin(th);
+    var q = [
+      c[0] + p.rho * (fr[0][0] * ca + fr[1][0] * sa),
+      c[1] + p.rho * (fr[0][1] * ca + fr[1][1] * sa),
+      c[2] + p.rho * (fr[0][2] * ca + fr[1][2] * sa)
+    ];
+    // turns 取整数 -> 首尾相接，成为真正的闭合涡线
+    return { p: q, c: c, t: tan, w: clamp(p.rho / 0.165, 0, 1) };
+  }
+  function buildRing(cfg, rnd, acc) {
+    var n = Math.round(170 * cfg.density);
+    for (var i = 0; i < n; i++) {
+      var q = i + 1;
+      var prm = {
+        R: cfg.ringR, y0: 0,
+        rho: 0.020 + 0.145 * Math.pow(radicalInv(q, 2), 1.25),
+        turns: Math.round(1 + 3 * rnd()),
+        phase: rnd() * TAU,
+        baseR: (0.0036 + 0.0030 * rnd()) * cfg.thick,
+        tint: 0.82 + 0.26 * rnd()
+      };
+      emit(acc, cfg, ringPath, prm,
+        function (t, ii, pp) { return pp.baseR * (0.45 + 0.7 * Math.sin(Math.PI * clamp(t, 0.03, 0.97))); },
+        function (t, ii, r, st, pp, w) {
+          var base = sampleRamp(RAMP_RADIUS, clamp(0.08 + 0.92 * w, 0, 1));
+          return [base[0] * pp.tint, base[1] * pp.tint, base[2] * pp.tint];
+        },
+        rnd(), { step: 0.026, maxSeg: 300, radial: 6, style: secStyle(cfg, 'coil'), paramFn: function (t) { return t; } });
+    }
+    return { total: n };
+  }
+
+  /* ================= 情形 4：涡重联（两根反向涡管靠近后换接） ================= */
+  // recon=0：两根平行直管；recon=1：在中间换接成对角的两根（拓扑改变）
+  function reconCL(s, p) {
+    var x = (s - 0.5) * p.lenX;
+    var H = 0.5 * (1 + Math.tanh(x / p.w));
+    var y = p.d * (p.side - 2 * p.recon * H);
+    return [x, y, p.zoff * p.side];
+  }
+  function reconPath(t, p) {
+    var c = reconCL(t, p);
+    var tan = clTangent(reconCL, t, p);
+    var fr = frameAt(tan, [0, 1, 0]);
+    // 重联区管心被拉细（涡量拉伸）
+    var pinch = 1 - 0.5 * Math.exp(-Math.pow(c[0] / p.w, 2));
+    var rho = p.rho * pinch;
+    var th = p.phase + TAU * p.turns * t;
+    var ca = Math.cos(th), sa = Math.sin(th);
+    var q = [
+      c[0] + rho * (fr[0][0] * ca + fr[1][0] * sa),
+      c[1] + rho * (fr[0][1] * ca + fr[1][1] * sa),
+      c[2] + rho * (fr[0][2] * ca + fr[1][2] * sa)
+    ];
+    return { p: q, c: c, t: tan, w: 1 - pinch };
+  }
+  function buildReconnect(cfg, rnd, acc) {
+    var per = Math.round(62 * cfg.density);
+    var d = cfg.reconD, lenX = cfg.reconLen, w = cfg.reconW, zoff = cfg.reconZ;
+    for (var s = 0; s < 2; s++) {
+      var side = s === 0 ? 1 : -1;
+      for (var i = 0; i < per; i++) {
+        var q = i + 1;
+        var prm = {
+          side: side, d: d, lenX: lenX, w: w, zoff: zoff, recon: 0,
+          rho: 0.014 + 0.105 * Math.pow(radicalInv(q, 2), 0.8),
+          turns: (1.0 + 2.5 * rnd()) * cfg.winding,
+          phase: rnd() * TAU,
+          baseR: (0.0030 + 0.0024 * rnd()) * cfg.thick,
+          tint: 0.84 + 0.24 * rnd()
+        };
+        var prm1 = {
+          side: side, d: d, lenX: lenX, w: w, zoff: zoff, recon: 1,
+          rho: prm.rho, turns: prm.turns, phase: prm.phase, baseR: prm.baseR, tint: prm.tint
+        };
+        emit(acc, cfg, reconPath, prm,
+          function (t, ii, pp) {
+            var x = (t - 0.5) * pp.lenX;
+            var pinch = 1 - 0.5 * Math.exp(-Math.pow(x / pp.w, 2));
+            return pp.baseR * (0.5 + 0.55 * pinch);
+          },
+          function (t, ii, r, st, pp, ww) {
+            var rN = clamp(r / 0.105, 0, 1);
+            var base = sampleRamp(RAMP_RADIUS, rN);
+            // 两根管环量相反：一根偏蓝、一根偏青，便于分辨
+            if (pp.side < 0) { base = mixCol(base, sampleRamp(RAMP_RADIUS, Math.min(1, rN + 0.34)), 0.7); }
+            var amber = sampleRamp(RAMP_AMBER, 0.55);
+            return mixCol(base, amber, 0.62 * smoothstep(0.25, 0.95, ww) * pp.tint);
+          },
+          rnd(), { step: 0.024, maxSeg: 170, radial: 6, style: secStyle(cfg, 'spray'), morphPrm: prm1 });
+      }
+    }
+    return { total: per * 2 };
+  }
+
+  /* ================= 情形 5：湍流涡管纠结（多尺度） ================= */
+  function makeTangleCtrl(rnd, scale) {
+    var n = 7 + Math.floor(rnd() * 5);
+    var pts = [];
+    var p = [(rnd() * 2 - 1) * 0.55, (rnd() * 2 - 1) * 0.55, (rnd() * 2 - 1) * 0.55];
+    var dir = norm([rnd() * 2 - 1, rnd() * 2 - 1, rnd() * 2 - 1]);
+    for (var i = 0; i < n; i++) {
+      pts.push([p[0], p[1], p[2]]);
+      dir = norm([dir[0] + (rnd() * 2 - 1) * 0.6, dir[1] + (rnd() * 2 - 1) * 0.6, dir[2] + (rnd() * 2 - 1) * 0.6]);
+      p = [p[0] + dir[0] * scale, p[1] + dir[1] * scale, p[2] + dir[2] * scale];
+      var rl = Math.sqrt(p[0] * p[0] + p[1] * p[1] + p[2] * p[2]);
+      if (rl > 0.90) {
+        p = [p[0] / rl * 0.90, p[1] / rl * 0.90, p[2] / rl * 0.90];
+        dir = norm([-p[0], -p[1], -p[2]]);
+      }
+    }
+    return pts;
+  }
+  function tanglePath(t, p) {
+    var P = p.ctrl, m = P.length - 1;
+    var idx = t * m;
+    var i0 = Math.min(m - 1, Math.floor(idx));
+    var f = idx - i0;
+    var a = P[Math.max(0, i0 - 1)], b = P[i0], c = P[Math.min(m, i0 + 1)], d = P[Math.min(m, i0 + 2)];
+    var q = catmull(a, b, c, d, f);
+    // 局部曲率：越“扭”的位置涡量越强，配色用它
+    var h = 0.03;
+    var q1 = catmull(a, b, c, d, Math.max(0, f - h)), q2 = catmull(a, b, c, d, Math.min(1, f + h));
+    var d1 = norm([q[0] - q1[0], q[1] - q1[1], q[2] - q1[2]]);
+    var d2 = norm([q2[0] - q[0], q2[1] - q[1], q2[2] - q[2]]);
+    var turn = Math.acos(clamp(d1[0] * d2[0] + d1[1] * d2[1] + d1[2] * d2[2], -1, 1));
+    return { p: q, c: [0, q[1], 0], t: [0, 1, 0], w: clamp(turn / 0.45, 0, 1) };
+  }
+  function buildTangle(cfg, rnd, acc) {
+    var n = Math.round(150 * cfg.density);
+    for (var i = 0; i < n; i++) {
+      var q = i + 1;
+      var scale = cfg.tanScale * (0.45 + 1.15 * radicalInv(q, 2));
+      var prm = {
+        ctrl: makeTangleCtrl(rnd, scale),
+        baseR: (0.0026 + 0.0052 * (scale / cfg.tanScale)) * cfg.thick,
+        scaleN: clamp((scale / cfg.tanScale - 0.45) / 1.15, 0, 1),
+        tint: 0.80 + 0.28 * rnd()
+      };
+      emit(acc, cfg, tanglePath, prm,
+        function (t, ii, pp) { return pp.baseR * (0.55 + 0.55 * Math.sin(Math.PI * clamp(t, 0.04, 0.96))); },
+        function (t, ii, r, st, pp, w) {
+          var base = sampleRamp(RAMP_RADIUS, clamp(0.12 + 0.55 * w + 0.30 * (1 - pp.scaleN), 0, 1));
+          return [base[0] * pp.tint, base[1] * pp.tint, base[2] * pp.tint];
+        },
+        rnd(), { step: 0.030, maxSeg: 190, radial: 6, style: secStyle(cfg, 'spray'), paramFn: function (t) { return t; } });
+    }
+    return { total: n };
+  }
+
+  /* ================= 情形 1：拉伸涡管（原图重建） ================= */
+  function buildTube(cfg, rnd, acc) {
+    var stats = { coils: 0, spray: 0, threads: 0 };
+    var i, k, t;
+
+    /* ---- A. 核心线圈（蓝）：近似水平的倾斜闭环，分层铺满涡管 ---- */
+    var nA = Math.round(cfg.coils * cfg.density);
+    for (i = 0; i < nA; i++) {
+      var q = i + 1;
+      var yc = cfg.coreYc + (-0.58 + 1.16 * radicalInv(q, 3));
+      var rMax = coreRadius(yc, cfg);
+      if (rMax < 0.02) { continue; }
+      var frac = 0.15 + 0.85 * radicalInv(q, 2);
+      // 少数线圈故意比包络更大，形成斜穿整堆的“缠绕丝”，避免一摞垫圈的呆板感
+      var over = rnd() < 0.26 ? (1.02 + 0.22 * rnd()) : 1.0;
+      var prm = {
+        cfg: cfg, yc: yc, rMax: rMax,
+        ri: Math.min(frac * rMax * over, rMax * 1.25),
+        turns: (1.6 + 1.6 * rnd()) * cfg.winding,
+        phase: rnd() * TAU,
+        slope: (rnd() * 2 - 1) * 0.05,
+        tiltX: (rnd() * 2 - 1) * 0.10, tiltZ: (rnd() * 2 - 1) * 0.10,
+        ex: 0.94 + 0.10 * rnd(), ez: 0.94 + 0.10 * rnd(),
+        ox: (rnd() * 2 - 1) * 0.030, oz: (rnd() * 2 - 1) * 0.030,
+        wob: 0.02 + 0.06 * rnd(), wobF: 1 + 2 * rnd(), ph2: rnd() * TAU, ph3: rnd() * TAU,
+        baseR: (0.0038 + 0.0024 * rnd()) * cfg.thick,
+        tint: 0.80 + 0.28 * rnd()
+      };
+      emit(acc, cfg, coilPathA, prm,
+        function (t, ii, pp) { return pp.baseR * Math.pow(Math.sin(Math.PI * (0.05 + 0.90 * t)), 0.30); },
+        function (t, ii, r, st, pp) {
+          return pickColor(clamp(r / cfg.rNorm, 0, 1), 0.08, 0, 0, pp.tint);
+        },
+        rnd(), { step: 0.026, maxSeg: 210, radial: 7, style: secStyle(cfg, 'coil') });
+      stats.coils++;
+    }
+
+    /* ---- B. 向外扫掠丝（青）：贴外壁盘绕后向外甩出，末端收成尖梢 ---- */
+    var nB = Math.round(cfg.spray * cfg.density);
+    for (i = 0; i < nB; i++) {
+      var qB = i + 1;
+      var prmB = {
+        startR: 0.24 + 0.20 * radicalInv(qB, 2),
+        endR: 0.40 + 0.36 * Math.pow(radicalInv(qB, 5), 1.5),
+        y0: -0.34 + 0.56 * radicalInv(qB, 3),
+        turns: (0.90 + 1.00 * rnd()) * cfg.winding,
+        phase: rnd() * TAU,
+        dy: -0.72 + 0.62 * rnd(),
+        sag: 0.03 + 0.10 * rnd(), sagF: 0.6 + 1.1 * rnd(), ph2: rnd() * TAU,
+        radPow: 1.5 + 1.1 * rnd(),
+        flatten: 0.88 + 0.14 * rnd(),
+        cBias: 0.05,
+        baseR: (0.0040 + 0.0026 * rnd()) * cfg.thick,
+        tint: 0.86 + 0.26 * rnd()
+      };
+      emit(acc, cfg, sprayPathA, prmB,
+        function (t, ii, pp) {
+          var head = smoothstep(0, 0.10, t);
+          var tail = Math.pow(Math.max(0, 1 - t), 0.45);
+          return pp.baseR * Math.max(0.05, head * (0.32 + 0.68 * tail));
+        },
+        function (t, ii, r, st, pp) {
+          var rN = clamp(r / cfg.rNorm + pp.cBias, 0, 1);
+          var tip = smoothstep(0.60, 1.0, t);
+          var c = pickColor(rN, 0.12 + 0.30 * t, 0, 0, pp.tint);
+          return [lerp(c[0], 0.72, tip * 0.30), lerp(c[1], 0.94, tip * 0.30), lerp(c[2], 0.92, tip * 0.30)];
+        },
+        rnd(), { step: 0.026, maxSeg: 200, radial: 7, style: secStyle(cfg, 'spray'), paramFn: function (t) { return 1 - t; } });
+      stats.spray++;
+    }
+
+    /* ---- C. 近轴细丝（琥珀）：沿轴被拉长的一段 ---- */
+    var nC = Math.round(cfg.threads * cfg.density);
+    for (i = 0; i < nC; i++) {
+      var qC = i + 1;
+      var top = radicalInv(qC, 2) < 0.54;
+      var prmC = {
+        top: top,
+        yTip: top ? (0.56 + 0.24 * radicalInv(qC, 3)) : -(0.58 + 0.28 * radicalInv(qC, 3)),
+        yIn: top ? (-0.02 + 0.30 * rnd()) : (0.02 - 0.30 * rnd()),
+        r0: 0.014 + (top ? 0.050 : 0.066) * rnd(),
+        turns: (0.55 + 1.85 * rnd()) * cfg.winding,
+        phase: rnd() * TAU,
+        bowA: 0.02 + 0.08 * rnd(),
+        bowSign: rnd() < 0.5 ? -1 : 1,
+        bowPh: rnd() * TAU,
+        ph2: rnd() * TAU,
+        baseR: (0.0034 + 0.0022 * rnd()) * cfg.thick,
+        tint: 0.88 + 0.22 * rnd()
+      };
+      emit(acc, cfg, threadPathA, prmC,
+        function (t, ii, pp) {
+          var head = smoothstep(0, 0.05, t);
+          var tail = Math.pow(Math.max(0, 1 - t), 0.50);
+          return pp.baseR * Math.max(0.08, head * (0.40 + 0.60 * tail));
+        },
+        function (t, ii, r, st, pp) {
+          var tipness = smoothstep(0.72, 0.14, t);
+          return pickColor(clamp(r / cfg.rNorm, 0, 1) * 0.85, st[ii], 1.0, tipness, pp.tint);
+        },
+        rnd(), { step: 0.022, maxSeg: 170, minSeg: 30, radial: 5, style: secStyle(cfg, 'thread'), paramFn: function (t) { return t; } });
+      stats.threads++;
+    }
+
+    stats.total = stats.coils + stats.spray + stats.threads;
+    return stats;
+  }
+
+  /* ------------------------- 轴线 + 箭头（灰色参考线） ----------------------------------------- */
+  function buildAxis() {
+    var acc = newAcc();
+    var gray = [0.60, 0.625, 0.655];
+    function flat() { return gray.slice(); }
+    // 主轴
+    addTube(acc, [[0, -0.78, 0], [0, -0.2, 0], [0, 0.4, 0], [0, 1.00, 0]], function () { return 0.0032; }, flat, 0.5, 4);
+    // 箭头
+    addTube(acc, [[0, 0.995, 0], [0, 1.045, 0], [0, 1.09, 0]], function (t) { return 0.021 * Math.pow(1 - t, 0.75); }, flat, 8);
+    // 顶部横向参考线
+    addTube(acc, [[-0.20, 0.972, 0], [0, 0.980, 0], [0.24, 0.986, 0]], function () { return 0.0018; }, flat, 4);
+    return finishAcc(acc);
+  }
+
+  /* ------------------------- 情形注册表 ------------------------- */
+  // cam: 该情形的默认机位（只是默认值，用户可以任意旋转/缩放，不锁死）
+  // anim: 该情形的默认动画参数；rhoMax 用于把“到局部涡轴的距离”归一化
+  // morph: 若存在，面板会出现“演化进程”滑块，在基础态与目标态之间连续形变
+  var MODES = {
+    tube: {
+      name: '拉伸涡管', en: 'stretching vortex tube',
+      note: '原图重建：涡管沿轴被拉伸，外侧细丝一边盘绕一边向内收缩。',
+      cam: { yaw: 0.15, pitch: 0.02, zoom: 1.00, target: [0, 0.015, 0] },
+      anim: { swirl: 1.0, inward: 1.0, stretch: 1.0, rhoMax: 0.80 },
+      morph: null,
+      labels: [
+        { text: 'axial stretching', zh: '轴向拉伸', anchor: [0.055, 0.62, 0.0], pos: { left: '64%', top: '6.5%' } },
+        { text: 'inward spiral', zh: '向内螺旋', anchor: [-0.50, 0.10, 0.18], pos: { left: '5.5%', top: '25%' } }
+      ],
+      build: buildTube, axis: buildAxis
+    },
+    kink: {
+      name: '扭曲失稳', en: 'kink instability (m=1)',
+      note: '涡管失去直线形态，弯成振幅沿程增长的螺旋——涡量被进一步拉伸的起点。',
+      cam: { yaw: 0.55, pitch: 0.18, zoom: 0.82, target: [0.05, 0, 0] },
+      anim: { swirl: 1.2, inward: 0.7, stretch: 0.8, rhoMax: 0.24 },
+      morph: { label: '失稳发展', def: 0.85, auto: false },
+      labels: [
+        { text: 'kink (m=1)', zh: '扭曲失稳', anchor: [0.16, 0.42, -0.05], pos: { left: '66%', top: '8%' } },
+        { text: 'axial stretching', zh: '轴向拉伸（弯管外侧）', anchor: [-0.04, -0.34, 0.03], pos: { left: '5%', top: '30%' } }
+      ],
+      build: buildKink
+    },
+    ring: {
+      name: '涡环', en: 'vortex ring',
+      note: '涡量沿一个大圆闭合，细丝绕管心做极向缠绕；整数圈缠绕即真正的闭合涡线。',
+      cam: { yaw: 0.30, pitch: 0.55, zoom: 1.15, target: [0, 0, 0] },
+      anim: { swirl: 1.5, inward: 0.5, stretch: 0.4, rhoMax: 0.26 },
+      morph: null,
+      labels: [
+        { text: 'closed vortex line', zh: '闭合涡线', anchor: [0.58, 0.0, 0.06], pos: { left: '67%', top: '13%' } },
+        { text: 'poloidal swirl', zh: '极向环流', anchor: [0.40, 0.22, -0.30], pos: { left: '5%', top: '26%' } }
+      ],
+      build: buildRing
+    },
+    reconnect: {
+      name: '涡重联', en: 'vortex reconnection',
+      note: '两根反向涡管相互靠近、在重联区被拉细，随后交换伙伴——拓扑结构发生改变。',
+      cam: { yaw: 0.45, pitch: 0.28, zoom: 0.80, target: [0, 0, 0] },
+      anim: { swirl: 1.3, inward: 0.6, stretch: 0.7, rhoMax: 0.14 },
+      morph: { label: '重联进程', def: 0.62, auto: true },
+      labels: [
+        { text: 'reconnection zone', zh: '重联区', anchor: [0.0, 0.0, 0.06], pos: { left: '62%', top: '7%' } },
+        { text: 'opposite circulation', zh: '反向环量', anchor: [-0.62, 0.30, 0.05], pos: { left: '4%', top: '30%' } }
+      ],
+      build: buildReconnect
+    },
+    tangle: {
+      name: '湍流纠结', en: 'vortex tangle',
+      note: '大量不同尺度的涡管互相缠绕——湍流里涡量拉伸与重联不断发生的真实样子。',
+      cam: { yaw: 0.60, pitch: 0.22, zoom: 1.00, target: [0, 0, 0] },
+      anim: { swirl: 0.9, inward: 0.5, stretch: 0.4, rhoMax: 0.55 },
+      morph: null,
+      labels: [
+        { text: 'vortex tangle', zh: '涡管纠结', anchor: [0.42, 0.35, 0.20], pos: { left: '64%', top: '10%' } },
+        { text: 'multi-scale', zh: '多尺度', anchor: [-0.45, -0.30, 0.15], pos: { left: '5%', top: '30%' } }
+      ],
+      build: buildTangle
+    }
+  };
+  var MODE_ORDER = ['tube', 'kink', 'ring', 'reconnect', 'tangle'];
+
+  /* ------------------------- 场景装配 ------------------------- */
+  function buildScene(opts) {
+    var cfg = {};
+    for (var k in DEFAULTS) { cfg[k] = DEFAULTS[k]; }
+    if (opts) { for (var k2 in opts) { if (opts[k2] !== undefined) { cfg[k2] = opts[k2]; } } }
+    var modeName = MODES[cfg.mode] ? cfg.mode : 'tube';
+    cfg.mode = modeName;
+    var mode = MODES[modeName];
+    var rnd = mulberry32(cfg.seed);
+    var acc = newAcc();
+    var st = mode.build(cfg, rnd, acc) || {};
+    var filaments = finishAcc(acc);
+    var axis = mode.axis ? mode.axis(cfg) : null;
+    var vtx = filaments.count + (axis ? axis.count : 0);
+    var tri = (filaments.index.length + (axis ? axis.index.length : 0)) / 3;
+    return {
+      cfg: cfg,
+      mode: modeName,
+      modeInfo: mode,
+      filaments: filaments,
+      axis: axis,
+      hasMorph: !!filaments.morphPosition,
+      stats: {
+        filaments: st.total || 0,
+        vertices: vtx,
+        triangles: tri
+      }
+    };
+  }
+
+  /* ------------------------- 顶点动画（与 GLSL 逐行对应） ----------------------------------------- */
+  // uni: {time, swirl, inward, stretch, animate, rhoMax}
+  // c/t: 该顶点所属的局部涡轴（点 + 方向）；缺省时退化为世界 Y 轴
+  function transformVertex(px, py, pz, nx, ny, nz, seed, param, uni, c, tan) {
+    var anim = uni.animate === undefined ? 1 : uni.animate;
+    var ax = 0, ay = 1, az = 0, cx = 0, cy = py, cz = 0;
+    if (tan) {
+      var tl = Math.sqrt(tan[0] * tan[0] + tan[1] * tan[1] + tan[2] * tan[2]) || 1;
+      ax = tan[0] / tl; ay = tan[1] / tl; az = tan[2] / tl;
+    }
+    if (c) { cx = c[0]; cy = c[1]; cz = c[2]; } else { cy = py; }
+    var rx = px - cx, ry = py - cy, rz = pz - cz;
+    var along = rx * ax + ry * ay + rz * az;
+    var qx = rx - ax * along, qy = ry - ay * along, qz = rz - az * along;
+    var rho = Math.sqrt(qx * qx + qy * qy + qz * qz);
+    var rhoN = clamp(rho / (uni.rhoMax || 0.35), 0, 1);
+    var seedPh = seed * 6.28318531;
+
+    var spin = uni.swirl * (1.15 * Math.sin(uni.time * 0.35 + seedPh * 0.25) + 0.45 * Math.sin(uni.time * 0.19)) * (0.30 + 1.25 * (1 - rhoN)) * anim;
+    var inwardA = 1 - uni.inward * 0.16 * (0.45 + 0.55 * Math.sin(uni.time * 0.5 + seedPh)) * (0.35 + 0.65 * rhoN);
+    var inward = lerp(1, inwardA, anim);
+    var stretchPulse = 0.55 + 0.45 * Math.sin(uni.time * 0.42 + seedPh * 0.7);
+    var yScaleA = 1 + uni.stretch * 0.30 * stretchPulse * (1 - rhoN) * (1 - rhoN);
+    var yScale = lerp(1, yScaleA, anim);
+
+    var cs = Math.cos(spin), sn = Math.sin(spin);
+    // 垂直分量绕局部涡轴扭转，沿轴分量被轴向拉伸
+    var qx1 = qx * cs + (ay * qz - az * qy) * sn;
+    var qy1 = qy * cs + (az * qx - ax * qz) * sn;
+    var qz1 = qz * cs + (ax * qy - ay * qx) * sn;
+    var al2 = along * yScale;
+    var X = cx + qx1 * inward + ax * al2;
+    var Y = cy + qy1 * inward + ay * al2;
+    var Z = cz + qz1 * inward + az * al2;
+
+    var nAlong = nx * ax + ny * ay + nz * az;
+    var nqx = nx - ax * nAlong, nqy = ny - ay * nAlong, nqz = nz - az * nAlong;
+    var kA = 1 / inward, kB = (nAlong / yScale - nAlong / inward);
+    var nX = (nqx * cs + (ay * nqz - az * nqy) * sn) * kA + ax * kB;
+    var nY = (nqy * cs + (az * nqx - ax * nqz) * sn) * kA + ay * kB;
+    var nZ = (nqz * cs + (ax * nqy - ay * nqx) * sn) * kA + az * kB;
+    var nl = Math.sqrt(nX * nX + nY * nY + nZ * nZ) || 1;
+    return { x: X, y: Y, z: Z, nx: nX / nl, ny: nY / nl, nz: nZ / nl };
+  }
+
+  /* ------------------------- 片元着色（与 GLSL 逐行对应） ----------------------------------------- */
+  var L1 = norm([-0.45, 0.72, 0.53]);
+  var L2 = norm([0.72, 0.30, -0.62]);
+  var L3 = norm([0.15, -0.80, 0.25]);
+
+  function shadePixel(col, nx, ny, nz, px, py, pz, cam, flow, param, seed, time) {
+    var nl = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    var Nx = nx / nl, Ny = ny / nl, Nz = nz / nl;
+    var vx = cam[0] - px, vy = cam[1] - py, vz = cam[2] - pz;
+    var vl = Math.sqrt(vx * vx + vy * vy + vz * vz) || 1;
+    vx /= vl; vy /= vl; vz /= vl;
+    var ndv = Nx * vx + Ny * vy + Nz * vz;
+    if (ndv < 0) { Nx = -Nx; Ny = -Ny; Nz = -Nz; ndv = -ndv; }
+
+    var d1 = Math.max(Nx * L1[0] + Ny * L1[1] + Nz * L1[2], 0);
+    var d2 = Math.max(Nx * L2[0] + Ny * L2[1] + Nz * L2[2], 0);
+    var d3 = Math.max(Nx * L3[0] + Ny * L3[1] + Nz * L3[2], 0);
+    var hemi = 0.5 + 0.5 * Ny;
+
+    var kAmb = 0.46 + 0.22 * hemi;
+    var kDif = 0.64 * d1 + 0.28 * d2 + 0.15 * d3;
+
+    // H1 = normalize(L1 + V)
+    var hx = L1[0] + vx, hy = L1[1] + vy, hz = L1[2] + vz;
+    var hl = Math.sqrt(hx * hx + hy * hy + hz * hz) || 1;
+    hx /= hl; hy /= hl; hz /= hl;
+    var sp = Math.max(Nx * hx + Ny * hy + Nz * hz, 0);
+    var spec = Math.pow(sp, 72) * 0.85 + Math.pow(sp, 16) * 0.14;
+
+    var fres = Math.pow(1 - ndv, 3);
+    var dim = (1 - 0.14 * fres);
+
+    var band = Math.pow(1 - Math.abs(fract(param - time * 0.05 + seed) * 2 - 1), 22);
+
+    return [
+      clamp((col[0] * (kAmb + kDif)) * dim + spec + col[0] * band * 0.85 * flow, 0, 1),
+      clamp((col[1] * (kAmb + kDif)) * dim + spec + col[1] * band * 0.85 * flow, 0, 1),
+      clamp((col[2] * (kAmb + kDif)) * dim + spec + col[2] * band * 0.85 * flow, 0, 1)
+    ];
+  }
+
+  root.VortexCore = {
+    TAU: TAU, clamp: clamp, lerp: lerp, smoothstep: smoothstep, fract: fract,
+    mulberry32: mulberry32, sampleRamp: sampleRamp, RAMP_RADIUS: RAMP_RADIUS, RAMP_AMBER: RAMP_AMBER,
+    mat4: mat4, projectPoint: projectPoint, coreRadius: coreRadius,
+    DEFAULTS: DEFAULTS, buildScene: buildScene, transformVertex: transformVertex, shadePixel: shadePixel,
+    MODES: MODES, MODE_ORDER: MODE_ORDER,
+    LIGHTS: [L1, L2, L3]
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+/* ==== VORTEX-CORE-END ==== */
+
+/* =====================================================================
+   APP : WebGL 渲染 + 交互（浏览器端）
+   ===================================================================== */
+(function () {
+  'use strict';
+  var V = window.VortexCore;
+  if (!V) { return; }
+
+  var canvas = document.getElementById('gl');
+  var fatalBox = document.getElementById('fatal');
+  function fatal(msg) {
+    fatalBox.style.display = 'block';
+    fatalBox.textContent = String(msg);
+  }
+
+  var glOpts = { antialias: true, alpha: false, depth: true, stencil: false, powerPreference: 'high-performance' };
+  var gl = canvas.getContext('webgl2', glOpts) || canvas.getContext('webgl', glOpts);
+  if (!gl) { fatal('浏览器不支持 WebGL，无法渲染 3D 漩涡。请用 Chrome / Edge / Firefox 打开，并确认已开启硬件加速。'); return; }
+
+  var isGL2 = typeof WebGL2RenderingContext !== 'undefined' && (gl instanceof WebGL2RenderingContext);
+  var uintExt = isGL2 ? true : !!gl.getExtension('OES_element_index_uint');
+
+  /* ---------------- 着色器 ---------------- */
+  var VERT = [
+    'attribute vec3 aPos;',
+    'attribute vec3 aNormal;',
+    'attribute vec3 aColor;',
+    'attribute vec3 aAnimC;',
+    'attribute vec3 aAnimT;',
+    'attribute vec3 aMorphPos;',
+    'attribute vec3 aMorphNrm;',
+    'attribute float aSeed;',
+    'attribute float aParam;',
+    'uniform mat4 uProj;',
+    'uniform mat4 uView;',
+    'uniform float uTime;',
+    'uniform float uSwirl;',
+    'uniform float uInward;',
+    'uniform float uStretch;',
+    'uniform float uAnimate;',
+    'uniform float uRhoMax;',
+    'uniform float uMorph;',
+    'uniform float uMorphAmt;',
+    'varying vec3 vColor;',
+    'varying vec3 vNormalW;',
+    'varying vec3 vPosW;',
+    'varying float vParam;',
+    'varying float vSeed;',
+    'void main() {',
+    '  vec3 p = aPos;',
+    '  vec3 nIn = aNormal;',
+    '  if (uMorph > 0.5) {',
+    '    p = mix(aPos, aMorphPos, uMorphAmt);',
+    '    nIn = mix(aNormal, aMorphNrm, uMorphAmt);',
+    '  }',
+    '  vec3 A = normalize(aAnimT);',
+    '  vec3 rel = p - aAnimC;',
+    '  float along = dot(rel, A);',
+    '  vec3 perp = rel - A * along;',
+    '  float rho = length(perp);',
+    '  float rhoN = clamp(rho / max(0.0001, uRhoMax), 0.0, 1.0);',
+    '  float seedPh = aSeed * 6.28318531;',
+    '  float spin = uSwirl * (1.15 * sin(uTime * 0.35 + seedPh * 0.25) + 0.45 * sin(uTime * 0.19)) * (0.30 + 1.25 * (1.0 - rhoN)) * uAnimate;',
+    '  float inwardA = 1.0 - uInward * 0.16 * (0.45 + 0.55 * sin(uTime * 0.5 + seedPh)) * (0.35 + 0.65 * rhoN);',
+    '  float inward = mix(1.0, inwardA, uAnimate);',
+    '  float stretchPulse = 0.55 + 0.45 * sin(uTime * 0.42 + seedPh * 0.7);',
+    '  float yScaleA = 1.0 + uStretch * 0.30 * stretchPulse * (1.0 - rhoN) * (1.0 - rhoN);',
+    '  float yScale = mix(1.0, yScaleA, uAnimate);',
+    '  float cs = cos(spin);',
+    '  float sn = sin(spin);',
+    '  vec3 perpR = perp * cs + cross(A, perp) * sn;',
+    '  vec3 disp = aAnimC + perpR * inward + A * (along * yScale);',
+    '  float nAlong = dot(nIn, A);',
+    '  vec3 nPerp = nIn - A * nAlong;',
+    '  vec3 nPerpR = nPerp * cs + cross(A, nPerp) * sn;',
+    '  vec3 n = nPerpR / inward + A * (nAlong / yScale - nAlong / inward);',
+    '  n = normalize(n);',
+    '  vPosW = disp;',
+    '  vNormalW = n;',
+    '  vColor = aColor;',
+    '  vParam = aParam;',
+    '  vSeed = aSeed;',
+    '  gl_Position = uProj * uView * vec4(disp, 1.0);',
+    '}'
+  ].join('\n');
+
+  var FRAG = [
+    'precision highp float;',
+    'varying vec3 vColor;',
+    'varying vec3 vNormalW;',
+    'varying vec3 vPosW;',
+    'varying float vParam;',
+    'varying float vSeed;',
+    'uniform vec3 uCam;',
+    'uniform float uFlow;',
+    'uniform float uTime;',
+    'uniform float uLit;',
+    'void main() {',
+    '  if (uLit < 0.5) { gl_FragColor = vec4(vColor, 1.0); return; }',
+    '  vec3 N = normalize(vNormalW);',
+    '  vec3 V = normalize(uCam - vPosW);',
+    '  if (dot(N, V) < 0.0) { N = -N; }',
+    '  vec3 L1 = normalize(vec3(-0.45, 0.72, 0.53));',
+    '  vec3 L2 = normalize(vec3( 0.72, 0.30, -0.62));',
+    '  vec3 L3 = normalize(vec3( 0.15, -0.80, 0.25));',
+    '  float d1 = max(dot(N, L1), 0.0);',
+    '  float d2 = max(dot(N, L2), 0.0);',
+    '  float d3 = max(dot(N, L3), 0.0);',
+    '  float hemi = 0.5 + 0.5 * N.y;',
+    '  float kAmb = 0.46 + 0.22 * hemi;',
+    '  float kDif = 0.64 * d1 + 0.28 * d2 + 0.15 * d3;',
+    '  vec3 H1 = normalize(L1 + V);',
+    '  float sp = max(dot(N, H1), 0.0);',
+    '  float spec = pow(sp, 72.0) * 0.85 + pow(sp, 16.0) * 0.14;',
+    '  float fres = pow(1.0 - max(dot(N, V), 0.0), 3.0);',
+    '  vec3 base = vColor * (kAmb + kDif) * (1.0 - 0.14 * fres);',
+    '  float band = pow(1.0 - abs(fract(vParam - uTime * 0.05 + vSeed) * 2.0 - 1.0), 22.0);',
+    '  vec3 col = base + vec3(spec) + vColor * band * 0.85 * uFlow;',
+    '  gl_FragColor = vec4(clamp(col, 0.0, 1.0), 1.0);',
+    '}'
+  ].join('\n');
+
+  function compile(type, src, label) {
+    var s = gl.createShader(type);
+    gl.shaderSource(s, src);
+    gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+      throw new Error(label + ' 着色器编译失败:\n' + gl.getShaderInfoLog(s));
+    }
+    return s;
+  }
+
+  var prog;
+  try {
+    prog = gl.createProgram();
+    gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT, 'vertex'));
+    gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG, 'fragment'));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
+      throw new Error('着色器链接失败:\n' + gl.getProgramInfoLog(prog));
+    }
+  } catch (e) {
+    fatal(e.message || String(e));
+    return;
+  }
+
+  gl.useProgram(prog);
+  var A = {
+    pos: gl.getAttribLocation(prog, 'aPos'),
+    nrm: gl.getAttribLocation(prog, 'aNormal'),
+    col: gl.getAttribLocation(prog, 'aColor'),
+    seed: gl.getAttribLocation(prog, 'aSeed'),
+    par: gl.getAttribLocation(prog, 'aParam'),
+    anc: gl.getAttribLocation(prog, 'aAnimC'),
+    ant: gl.getAttribLocation(prog, 'aAnimT'),
+    mpos: gl.getAttribLocation(prog, 'aMorphPos'),
+    mnrm: gl.getAttribLocation(prog, 'aMorphNrm')
+  };
+  var U = {};
+  ['uProj', 'uView', 'uCam', 'uTime', 'uSwirl', 'uInward', 'uStretch', 'uFlow', 'uLit', 'uAnimate',
+    'uRhoMax', 'uMorph', 'uMorphAmt'].forEach(function (n) {
+    U[n] = gl.getUniformLocation(prog, n);
+  });
+
+  /* ---------------- 网格上传 ---------------- */
+  function makeMesh(mesh) {
+    if (!uintExt && mesh.count > 65535) {
+      throw new Error('当前浏览器不支持 32 位索引（OES_element_index_uint），无法绘制这么多细丝。请改用较新的 Chrome / Edge / Firefox。');
+    }
+    function buf(data, target) {
+      var b = gl.createBuffer();
+      gl.bindBuffer(target, b);
+      gl.bufferData(target, data, gl.STATIC_DRAW);
+      return b;
+    }
+    return {
+      pos: buf(mesh.position, gl.ARRAY_BUFFER),
+      nrm: buf(mesh.normal, gl.ARRAY_BUFFER),
+      col: buf(mesh.color, gl.ARRAY_BUFFER),
+      seed: buf(mesh.seed, gl.ARRAY_BUFFER),
+      par: buf(mesh.param, gl.ARRAY_BUFFER),
+      anc: buf(mesh.animC, gl.ARRAY_BUFFER),
+      ant: buf(mesh.animT, gl.ARRAY_BUFFER),
+      mpos: mesh.morphPosition ? buf(mesh.morphPosition, gl.ARRAY_BUFFER) : null,
+      mnrm: mesh.morphNormal ? buf(mesh.morphNormal, gl.ARRAY_BUFFER) : null,
+      hasMorph: !!mesh.morphPosition,
+      idx: buf(mesh.index, gl.ELEMENT_ARRAY_BUFFER),
+      n: mesh.index.length
+    };
+  }
+  function disposeMesh(m) {
+    if (!m) { return; }
+    ['pos', 'nrm', 'col', 'seed', 'par', 'anc', 'ant', 'mpos', 'mnrm', 'idx'].forEach(function (k) {
+      if (m[k]) { gl.deleteBuffer(m[k]); }
+    });
+  }
+  // 注意：WebGL 要求已启用的属性数组缓冲必须覆盖全部顶点索引，否则 drawElements 会报
+  // INVALID_OPERATION 而整帧不画。没有形变数据的网格因此改用“禁用属性 + 常量值”。
+  function bindMesh(m) {
+    function set(loc, b, size) {
+      if (loc < 0) { return; }
+      gl.bindBuffer(gl.ARRAY_BUFFER, b);
+      gl.enableVertexAttribArray(loc);
+      gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0);
+    }
+    function constAttr(loc) {
+      if (loc < 0) { return; }
+      gl.disableVertexAttribArray(loc);
+      gl.vertexAttrib3f(loc, 0, 0, 0);
+    }
+    set(A.pos, m.pos, 3); set(A.nrm, m.nrm, 3); set(A.col, m.col, 3);
+    set(A.seed, m.seed, 1); set(A.par, m.par, 1);
+    set(A.anc, m.anc, 3); set(A.ant, m.ant, 3);
+    if (m.mpos) { set(A.mpos, m.mpos, 3); } else { constAttr(A.mpos); }
+    if (m.mnrm) { set(A.mnrm, m.mnrm, 3); } else { constAttr(A.mnrm); }
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, m.idx);
+  }
+
+  /* ---------------- 状态 ---------------- */
+  var state = {
+    mode: 'tube', density: 1.0, winding: 1.0, sec: 1.0, inward: 1.0, stretch: 1.0, swirl: 1.0, speed: 1.0,
+    morph: 0, morphAuto: false,
+    auto: true, flow: true, labels: true, axis: true, ortho: false, playing: true, seed: V.DEFAULTS.seed
+  };
+  var uni = { time: 0, swirl: 1.0, inward: 1.0, stretch: 1.0, animate: 1, rhoMax: 0.8 };
+  var FLOW_AMOUNT = 0.34;
+
+  var cam = { yaw: 0.15, pitch: 0.02, zoom: 1, target: [0, 0.015, 0], eye: [0, 0, 5], vyaw: 0, vpitch: 0 };
+  var camTo = null;                      // 切情形时的机位平滑过渡目标
+  var FOV = 24 * Math.PI / 180;
+
+  var scene = null, gpuFilaments = null, gpuAxis = null;
+  var proj = V.mat4.create(), view = V.mat4.create(), vpMat = V.mat4.create();
+
+  function applyModeDefaults(modeName) {
+    var info = V.MODES[modeName];
+    if (!info) { return; }
+    state.swirl = info.anim.swirl;
+    state.inward = info.anim.inward;
+    state.stretch = info.anim.stretch;
+    state.morph = info.morph ? info.morph.def : 0;
+    state.morphAuto = !!(info.morph && info.morph.auto);
+    syncControls();
+    camTo = {
+      yaw: info.cam.yaw, pitch: info.cam.pitch, zoom: info.cam.zoom,
+      target: info.cam.target.slice()
+    };
+  }
+
+  function rebuild(newSeed) {
+    if (newSeed) { state.seed = (Math.random() * 4294967295) >>> 0; }
+    var t0 = performance.now();
+    var s = V.buildScene({
+      mode: state.mode, seed: state.seed, density: state.density,
+      winding: state.winding, sec: state.sec
+    });
+    var f, a;
+    try {
+      f = makeMesh(s.filaments);
+      a = s.axis ? makeMesh(s.axis) : null;
+    } catch (e) { fatal(e.message || String(e)); return; }
+    disposeMesh(gpuFilaments); disposeMesh(gpuAxis);
+    gpuFilaments = f; gpuAxis = a; scene = s;
+    buildLabels(s.modeInfo.labels || []);
+    lastBuildMs = performance.now() - t0;
+    updateStats();
+    updateLegendVisibility();
+  }
+  var lastBuildMs = 0;
+
+  /* ---------------- 相机 ---------------- */
+  function updateCamera() {
+    var W = canvas.width, H = canvas.height;
+    var aspect = W / Math.max(1, H);
+    var tan = Math.tan(FOV * 0.5);
+    var base = Math.max(1.06 / tan, 0.94 / (aspect * tan));
+    var dist = base * cam.zoom;
+    var cp = Math.cos(cam.pitch), sp = Math.sin(cam.pitch);
+    cam.eye = [
+      cam.target[0] + dist * cp * Math.sin(cam.yaw),
+      cam.target[1] + dist * sp,
+      cam.target[2] + dist * cp * Math.cos(cam.yaw)
+    ];
+    V.mat4.perspective(proj, FOV, aspect, 0.05, 60);
+    if (state.ortho) {
+      var hh = dist * Math.tan(FOV * 0.5);
+      V.mat4.ortho(proj, -hh * aspect, hh * aspect, -hh, hh, -20, 40);
+    }
+    V.mat4.lookAt(view, cam.eye, cam.target, [0, 1, 0]);
+    V.mat4.multiply(vpMat, proj, view);
+  }
+
+  function resize() {
+    var dpr = Math.min(window.devicePixelRatio || 1, 2);
+    var w = Math.max(1, Math.round(canvas.clientWidth * dpr));
+    var h = Math.max(1, Math.round(canvas.clientHeight * dpr));
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w; canvas.height = h;
+    }
+    gl.viewport(0, 0, canvas.width, canvas.height);
+    cacheLabelRects();
+  }
+
+  /* ---------------- 交互 ---------------- */
+  var pointers = new Map();
+  var dragMode = null, lastMid = null, lastPinch = 0;
+
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+  canvas.addEventListener('pointerdown', function (e) {
+    canvas.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    canvas.classList.add('dragging');
+    if (pointers.size === 1) {
+      dragMode = (e.button === 2 || e.shiftKey) ? 'pan' : 'rotate';
+    } else if (pointers.size === 2) {
+      dragMode = 'pinch';
+      var p = Array.from(pointers.values());
+      lastPinch = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      lastMid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+    }
+  });
+  canvas.addEventListener('pointermove', function (e) {
+    if (!pointers.has(e.pointerId)) { return; }
+    var prev = pointers.get(e.pointerId);
+    var dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    if (dragMode === 'rotate' && pointers.size === 1) {
+      cam.vyaw = -dx * 0.0055;
+      cam.vpitch = -dy * 0.0045;
+      cam.yaw += cam.vyaw;
+      cam.pitch = V.clamp(cam.pitch + cam.vpitch, -1.545, 1.545);   // 允许接近俯视/仰视
+    } else if (dragMode === 'pan' && pointers.size === 1) {
+      panBy(dx, dy);
+    } else if (dragMode === 'pinch' && pointers.size === 2) {
+      var p = Array.from(pointers.values());
+      var d = Math.hypot(p[0].x - p[1].x, p[0].y - p[1].y);
+      if (lastPinch > 0) { cam.zoom = V.clamp(cam.zoom * (lastPinch / Math.max(1, d)), 0.45, 3.2); }
+      lastPinch = d;
+      var mid = { x: (p[0].x + p[1].x) / 2, y: (p[0].y + p[1].y) / 2 };
+      if (lastMid) { panBy(mid.x - lastMid.x, mid.y - lastMid.y); }
+      lastMid = mid;
+    }
+  });
+  function endPointer(e) {
+    pointers.delete(e.pointerId);
+    if (pointers.size === 0) { dragMode = null; canvas.classList.remove('dragging'); }
+    else if (pointers.size === 1) { dragMode = 'rotate'; lastMid = null; }
+  }
+  canvas.addEventListener('pointerup', endPointer);
+  canvas.addEventListener('pointercancel', endPointer);
+
+  function panBy(dx, dy) {
+    var dist = Math.hypot(cam.eye[0] - cam.target[0], cam.eye[1] - cam.target[1], cam.eye[2] - cam.target[2]);
+    var scale = dist * Math.tan(FOV * 0.5) * 2 / Math.max(1, canvas.clientHeight);
+    // 相机基：z = 视线反方向，right = normalize(cross(up, z))，up' = cross(z, right)
+    var z = [cam.eye[0] - cam.target[0], cam.eye[1] - cam.target[1], cam.eye[2] - cam.target[2]];
+    var zl = Math.hypot(z[0], z[1], z[2]) || 1; z = [z[0] / zl, z[1] / zl, z[2] / zl];
+    var x = [1 * z[2] - 0 * z[1], 0 * z[0] - 0 * z[2], 0 * z[1] - 1 * z[0]];
+    var xl = Math.hypot(x[0], x[1], x[2]) || 1; x = [x[0] / xl, x[1] / xl, x[2] / xl];
+    var y = [z[1] * x[2] - z[2] * x[1], z[2] * x[0] - z[0] * x[2], z[0] * x[1] - z[1] * x[0]];
+    cam.target[0] += (-dx * x[0] + dy * y[0]) * scale;
+    cam.target[1] += (-dx * x[1] + dy * y[1]) * scale;
+    cam.target[2] += (-dx * x[2] + dy * y[2]) * scale;
+  }
+
+  canvas.addEventListener('wheel', function (e) {
+    e.preventDefault();
+    cam.zoom = V.clamp(cam.zoom * Math.exp(e.deltaY * 0.0011), 0.45, 3.2);
+  }, { passive: false });
+
+  canvas.addEventListener('dblclick', function () { resetView(); });
+  function resetView() {
+    var info = V.MODES[state.mode] || V.MODES.tube;
+    cam.yaw = info.cam.yaw; cam.pitch = info.cam.pitch; cam.zoom = info.cam.zoom;
+    cam.target = info.cam.target.slice();
+    cam.vyaw = 0; cam.vpitch = 0;
+    camTo = null;
+  }
+
+  /* ---------------- 标注（每个情形一套，动态生成） ---------------- */
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var labelItems = [];
+
+  function buildLabels(list) {
+    var host = document.getElementById('labels');
+    var svg = document.getElementById('leaders');
+    host.innerHTML = '';
+    svg.innerHTML = '';
+    labelItems = [];
+    (list || []).forEach(function (L) {
+      var el = document.createElement('div');
+      el.className = 'lab';
+      var en = document.createElement('span');
+      en.textContent = L.text;
+      var zh = document.createElement('span');
+      zh.className = 'zh';
+      zh.textContent = L.zh;
+      el.appendChild(en); el.appendChild(zh);
+      el.style.left = L.pos.left;
+      el.style.top = L.pos.top;
+      host.appendChild(el);
+      var line = document.createElementNS(SVGNS, 'line');
+      var dot = document.createElementNS(SVGNS, 'circle');
+      dot.setAttribute('r', '2.2');
+      svg.appendChild(line);
+      svg.appendChild(dot);
+      labelItems.push({ el: el, line: line, dot: dot, anchor: L.anchor, rect: null });
+    });
+    cacheLabelRects();
+  }
+
+  function cacheLabelRects() {
+    labelItems.forEach(function (it) { it.rect = it.el.getBoundingClientRect(); });
+  }
+
+  function hideLabel(it) {
+    it.el.classList.add('hide');
+    it.line.setAttribute('x1', -99); it.line.setAttribute('y1', -99);
+    it.line.setAttribute('x2', -99); it.line.setAttribute('y2', -99);
+    it.dot.setAttribute('cx', -99); it.dot.setAttribute('cy', -99);
+  }
+
+  function drawLabels() {
+    var W = canvas.clientWidth, H = canvas.clientHeight;
+    labelItems.forEach(function (it) {
+      if (!state.labels) { hideLabel(it); return; }
+      var rect = it.rect || it.el.getBoundingClientRect();
+      var s = V.projectPoint(vpMat, W, H, it.anchor);
+      if (!s) { hideLabel(it); return; }
+      it.el.classList.remove('hide');
+      // 引导线：从标注框靠锚点的一角连到 3D 锚点
+      var cx = V.clamp(s.x, rect.left, rect.right);
+      var cy = V.clamp(s.y, rect.top, rect.bottom);
+      it.line.setAttribute('x1', cx.toFixed(1)); it.line.setAttribute('y1', cy.toFixed(1));
+      it.line.setAttribute('x2', s.x.toFixed(1)); it.line.setAttribute('y2', s.y.toFixed(1));
+      it.dot.setAttribute('cx', s.x.toFixed(1)); it.dot.setAttribute('cy', s.y.toFixed(1));
+    });
+  }
+
+  /* ---------------- 情形选择 ---------------- */
+  function buildModeButtons() {
+    var host = document.getElementById('modes');
+    host.innerHTML = '';
+    V.MODE_ORDER.forEach(function (m) {
+      var info = V.MODES[m];
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.mode = m;
+      var sp = document.createElement('span');
+      sp.textContent = info.name;
+      var em = document.createElement('em');
+      em.textContent = info.en;
+      b.appendChild(sp); b.appendChild(em);
+      b.addEventListener('click', function () { setMode(m); });
+      host.appendChild(b);
+    });
+  }
+
+  function setMode(m) {
+    if (!V.MODES[m]) { return; }
+    state.mode = m;
+    applyModeDefaults(m);
+    var note = document.getElementById('mode-note');
+    note.textContent = V.MODES[m].note;
+    var btns = document.querySelectorAll('#modes button');
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].classList.toggle('on', btns[i].dataset.mode === m);
+    }
+    var hasMorph = !!V.MODES[m].morph;
+    document.getElementById('row-morph').style.display = hasMorph ? '' : 'none';
+    document.getElementById('chk-morphauto').style.display = hasMorph ? '' : 'none';
+    if (hasMorph) { document.getElementById('lbl-morph').textContent = V.MODES[m].morph.label; }
+    rebuild(false);
+  }
+
+  // 把 state 写回控件（切情形时同步默认参数）
+  function syncControls() {
+    [['swirl', 2], ['inward', 2], ['stretch', 2], ['morph', 2]].forEach(function (pair) {
+      var el = document.getElementById('s-' + pair[0]);
+      var out = document.getElementById('v-' + pair[0]);
+      if (!el) { return; }
+      el.value = state[pair[0]];
+      out.textContent = state[pair[0]].toFixed(pair[1]);
+    });
+    var ma = document.getElementById('c-morphauto');
+    if (ma) { ma.checked = state.morphAuto; }
+  }
+
+  /* ---------------- 控件 ---------------- */
+  function bindRange(id, key, fmt, rebuildNeeded) {
+    var el = document.getElementById('s-' + id), out = document.getElementById('v-' + id);
+    el.addEventListener('input', function () {
+      state[key] = parseFloat(el.value);
+      out.textContent = fmt(state[key]);
+      if (rebuildNeeded) { scheduleRebuild(); }
+    });
+    out.textContent = fmt(state[key]);
+  }
+  var rebuildTimer = null;
+  function scheduleRebuild() {
+    if (rebuildTimer) { clearTimeout(rebuildTimer); }
+    rebuildTimer = setTimeout(function () { rebuild(false); rebuildTimer = null; }, 140);
+  }
+  bindRange('density', 'density', function (v) { return v.toFixed(1); }, true);
+  bindRange('winding', 'winding', function (v) { return v.toFixed(2); }, true);
+  bindRange('sec', 'sec', function (v) { return v < 0.3 ? '圆丝' : (v < 0.75 ? '微扁' : '扁带'); }, true);
+  bindRange('inward', 'inward', function (v) { return v.toFixed(2); }, false);
+  bindRange('stretch', 'stretch', function (v) { return v.toFixed(2); }, false);
+  bindRange('swirl', 'swirl', function (v) { return v.toFixed(2); }, false);
+  bindRange('speed', 'speed', function (v) { return v.toFixed(2); }, false);
+
+  // 演化进程：手动拖动即关闭“自动演化”
+  (function () {
+    var el = document.getElementById('s-morph'), out = document.getElementById('v-morph');
+    el.addEventListener('input', function () {
+      state.morph = parseFloat(el.value);
+      out.textContent = state.morph.toFixed(2);
+      state.morphAuto = false;
+      document.getElementById('c-morphauto').checked = false;
+    });
+  })();
+
+  function bindCheck(id, key) {
+    var el = document.getElementById('c-' + id);
+    el.checked = state[key];
+    el.addEventListener('change', function () {
+      state[key] = el.checked;
+      if (key === 'labels') { cacheLabelRects(); }
+    });
+  }
+  bindCheck('auto', 'auto');
+  bindCheck('flow', 'flow');
+  bindCheck('labels', 'labels');
+  bindCheck('axis', 'axis');
+  bindCheck('morphauto', 'morphAuto');
+  bindCheck('ortho', 'ortho');
+
+  var btnPause = document.getElementById('b-pause');
+  btnPause.addEventListener('click', function () {
+    state.playing = !state.playing;
+    btnPause.textContent = state.playing ? '暂停' : '播放';
+  });
+  document.getElementById('b-reset').addEventListener('click', resetView);
+  document.getElementById('b-reseed').addEventListener('click', function () { rebuild(true); });
+  var pendingCapture = false;
+  document.getElementById('b-save').addEventListener('click', function () { pendingCapture = true; });
+
+  var panel = document.getElementById('panel');
+  var btnCollapse = document.getElementById('collapse');
+  btnCollapse.addEventListener('click', function () {
+    panel.classList.toggle('collapsed');
+    btnCollapse.textContent = panel.classList.contains('collapsed') ? '+' : '–';
+    setTimeout(cacheLabelRects, 60);
+  });
+  if (window.innerWidth < 980) { panel.classList.add('collapsed'); btnCollapse.textContent = '+'; }
+
+  function updateLegendVisibility() {
+    // 保留：图例在“近轴细丝”数量为 0 时也照常显示，避免布局跳动
+    var legendAmber = document.querySelectorAll('.legend .amber');
+    for (var i = 0; i < legendAmber.length; i++) {
+      legendAmber[i].style.display = '';
+    }
+  }
+
+  /* ---------------- 统计 ---------------- */
+  var statEl = document.getElementById('stats');
+  var fpsAcc = 0, fpsN = 0, fps = 0;
+  function updateStats() {
+    if (!scene) { return; }
+    statEl.textContent = '细丝 ' + scene.stats.filaments + ' 条 · 顶点 ' + (scene.stats.vertices / 1000).toFixed(0) +
+      'k · 三角形 ' + (scene.stats.triangles / 1000).toFixed(0) + 'k · 构建 ' + lastBuildMs.toFixed(0) +
+      'ms · ' + fps.toFixed(0) + 'fps';
+  }
+
+  /* ---------------- 渲染 ---------------- */
+  function drawMesh(m, lit) {
+    bindMesh(m);
+    gl.uniform1f(U.uLit, lit);
+    gl.uniform1f(U.uAnimate, lit > 0.5 ? 1 : 0);
+    gl.uniform1f(U.uMorph, (lit > 0.5 && m.hasMorph) ? 1 : 0);
+    gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_INT, 0);
+  }
+
+  var last = performance.now();
+  var SHOT = /[?&]still=1/.test(location.search);
+  var FIXED_T = (function () {
+    var m = /[?&]t=([0-9.]+)/.exec(location.search);
+    return m ? parseFloat(m[1]) : null;
+  })();
+  var URL_MODE = (function () {
+    var m = /[?&]mode=([a-z]+)/.exec(location.search);
+    return m && V.MODES[m[1]] ? m[1] : null;
+  })();
+
+  function frame(now) {
+    // dt 必须夹在 [0, 0.05]：某些浏览器给 rAF 的时间戳与 performance.now() 时间原点不一致，
+    // 会出现巨大负值，进而让机位插值算出 Infinity/NaN，整个视图矩阵失效（画面全白）。
+    var dt = V.clamp((now - last) / 1000, 0, 0.05);
+    last = now;
+    try {
+      renderFrame(dt);
+    } catch (err) {
+      fatal('渲染循环出错：' + (err && err.message ? err.message : err));
+      throw err;
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function renderFrame(dt) {
+    fpsAcc += dt; fpsN++;
+    if (fpsAcc > 0.4) { fps = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; updateStats(); }
+
+    if (state.playing && !SHOT) {
+      uni.time += dt * state.speed;
+      if (state.morphAuto) {
+        state.morph = 0.5 + 0.5 * Math.sin(uni.time * 0.30);
+        var sm = document.getElementById('s-morph');
+        if (sm) { sm.value = state.morph; document.getElementById('v-morph').textContent = state.morph.toFixed(2); }
+      }
+    }
+    if (FIXED_T !== null) {
+      uni.time = FIXED_T;
+      if (state.morphAuto) { state.morph = 0.5 + 0.5 * Math.sin(FIXED_T * 0.30); }
+    }
+
+    // 切情形时机位平滑过渡到该情形的默认机位
+    if (camTo) {
+      var k = 1 - Math.pow(0.002, dt);
+      cam.yaw += (camTo.yaw - cam.yaw) * k;
+      cam.pitch += (camTo.pitch - cam.pitch) * k;
+      cam.zoom += (camTo.zoom - cam.zoom) * k;
+      for (var ci = 0; ci < 3; ci++) { cam.target[ci] += (camTo.target[ci] - cam.target[ci]) * k; }
+      var done = Math.abs(camTo.yaw - cam.yaw) < 1e-3 && Math.abs(camTo.pitch - cam.pitch) < 1e-3 &&
+        Math.abs(camTo.zoom - cam.zoom) < 1e-3;
+      if (done) { camTo = null; }
+    } else if (state.auto) {
+      cam.yaw += dt * 0.055 * (state.playing ? 1 : 0.35);
+      cam.vyaw = 0; cam.vpitch = 0;
+    } else {
+      cam.yaw += cam.vyaw; cam.pitch = V.clamp(cam.pitch + cam.vpitch, -1.545, 1.545);
+      cam.vyaw *= 0.90; cam.vpitch *= 0.90;
+    }
+
+    resize();
+    updateCamera();
+
+    uni.swirl = state.swirl;
+    uni.inward = state.inward;
+    uni.stretch = state.stretch;
+    uni.rhoMax = (scene && scene.modeInfo.anim.rhoMax) || 0.8;
+
+    gl.clearColor(1, 1, 1, 1);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.enable(gl.DEPTH_TEST);
+    gl.enable(gl.CULL_FACE);
+    gl.cullFace(gl.BACK);
+    gl.useProgram(prog);
+
+    gl.uniformMatrix4fv(U.uProj, false, proj);
+    gl.uniformMatrix4fv(U.uView, false, view);
+    gl.uniform3fv(U.uCam, cam.eye);
+    gl.uniform1f(U.uTime, uni.time);
+    gl.uniform1f(U.uSwirl, uni.swirl);
+    gl.uniform1f(U.uInward, uni.inward);
+    gl.uniform1f(U.uStretch, uni.stretch);
+    gl.uniform1f(U.uRhoMax, uni.rhoMax);
+    gl.uniform1f(U.uMorphAmt, state.morph);
+    gl.uniform1f(U.uFlow, state.flow ? FLOW_AMOUNT : 0);
+
+    if (gpuFilaments) { drawMesh(gpuFilaments, 1); }
+    if (gpuAxis && state.axis) { drawMesh(gpuAxis, 0); }
+
+    drawLabels();
+
+    if (pendingCapture) {
+      pendingCapture = false;
+      try {
+        var url = canvas.toDataURL('image/png');
+        var a = document.createElement('a');
+        a.href = url; a.download = 'vortex-3d.png';
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      } catch (err) { fatal('存图失败：' + err.message); }
+    }
+  }
+
+  window.addEventListener('resize', function () { resize(); cacheLabelRects(); });
+  canvas.addEventListener('webglcontextlost', function (e) {
+    e.preventDefault();
+    fatal('WebGL 上下文丢失（显卡驱动重置或显存不足）。请刷新页面。');
+  });
+
+  buildModeButtons();
+  resize();
+  setMode(URL_MODE || 'tube');
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
