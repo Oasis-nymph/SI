@@ -3,7 +3,9 @@
 把 OpenAI《Navier–Stokes 问题》配图里的那个漩涡，重建成**可交互的 3D 模型**，并且
 **做成了五种不同物理情形**，每种形态、配色、机位、标注都不一样。
 
-- 主文件：`index.html`（自包含，无 CDN、无构建步骤、无外部资源，双击即开）
+▶ **在线预览**：[oasis-nymph.github.io/SI/vortex-3d](https://oasis-nymph.github.io/SI/vortex-3d/)（GitHub Pages 托管，点开即玩）
+
+- 主文件：[index.html](https://github.com/Oasis-nymph/SI/blob/main/vortex-3d/index.html)（自包含，无 CDN、无构建步骤、无外部资源，双击即开）
 - 真实浏览器截图：`tools/shots/`（五种情形各一张，无头 Edge 实拍）
 - 离线校验器：`tools/render-check.js`（Node 端 CPU 光栅化，无浏览器也能检查几何与配色）
 - 页面自检：`tools/_check.js`（语法、DOM id、顶点缓冲完整性、五种情形属性一致性）
